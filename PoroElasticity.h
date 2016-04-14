@@ -69,19 +69,24 @@ class PoroElasticity : public Elasticity
   };
 
 public:
-  //! \brief The default constructor initializes all pointers to zero.
+  //! \brief Default constructor.
   //! \param[in] n Number of spatial dimensions
-  //! \param[in] order Order of the time-integration scheme
-  PoroElasticity(unsigned short int n = 3, int order = 1);
+  PoroElasticity(unsigned short int n = 3);
   //! \brief Empty destructor.
   virtual ~PoroElasticity() {}
 
-  //! \brief Defines the scaling factor.
-  void setScaling(double scaling) { sc = scaling; }
-  //! \brief Obtain current scaling factor.
-  double getScaling() const { return sc; }
+  using Elasticity::parseMatProp;
+  //! \brief Parses material properties from an XML-element.
+  virtual Material* parseMatProp(const TiXmlElement* elem, bool);
+  //! \brief Parses a data section from an XML-element.
+  virtual bool parse(const TiXmlElement* elem);
 
-  //! \brief Returns the current gravity vector.
+  //! \brief Prints out the problem definition to the log stream.
+  virtual void printLog() const;
+
+  //! \brief Returns current scaling factor (for unit testing).
+  double getScaling() const { return sc; }
+  //! \brief Returns the current gravity vector (for unit testing).
   const Vec3 getGravity() const { return gravity; }
 
   //! \brief Computes the stiffness matrix for a quadrature point.
@@ -99,24 +104,22 @@ public:
   bool evalPermeabilityMatrix(Matrix &mx, const Matrix &grad, double scl,
                               const Vec3 &permeability, double acc_dens, double detJxW) const;
 
-  using IntegrandBase::getLocalIntegral;
-  //! \brief Returns a local integral container for the given element
-  //! \param[in] nen1 Number of nodes on element for basis 1
-  //! \param[in] nen2 Number of nodes on element for basis 2
+  //! \brief Returns a local integral contribution object for the given element.
+  //! \param[in] nen Number of nodes on element for each basis
   //! \param[in] neumann Whether or not we are assembling Neumann BCs
   virtual LocalIntegral* getLocalIntegral(const std::vector<size_t>& nen,
                                           size_t, bool neumann) const;
   //! \brief Returns a local integral contribution object for the given element.
   //! \param[in] nen Number of nodes on element
-  //! \param[in] iEl Global element number (1-based)
   //! \param[in] neumann Whether or not we are assembling Neumann BCs
-  virtual LocalIntegral* getLocalIntegral(size_t nen, size_t iEl,
-                                          bool neumann = false) const;
+  virtual LocalIntegral* getLocalIntegral(size_t nen,
+                                          size_t, bool neumann) const;
 
-  //! \brief Initializes current element for numerical integration
-  //! \param[in] MNPC1 Nodal point correspondence for basis 1
-  //! \param[in] MNPC2 Nodal point correspondence for basis 2
-  //! \param[in] n1 Number of nodes in basis 1 on this patch
+  using Elasticity::initElement;
+  //! \brief Initializes current element for numerical integration.
+  //! \param[in] MNPC Nodal point correspondence for each basis
+  //! \param[in] elem_sizes Size of each basis on the element
+  //! \param[in] basis_sizes Size of each basis on the patch level
   //! \param elmInt The local integral object for current element
   virtual bool initElement(const std::vector<int>& MNPC,
                            const std::vector<size_t>& elem_sizes,
@@ -126,16 +129,12 @@ public:
   //! \brief Initializes current element for numerical integration.
   //! \param[in] MNPC Matrix of nodal point correspondance for current element
   //! \param elmInt Local integral for element
-  //!
-  //! \details This method is invoked once before starting the numerical
-  //! integration loop over the Gaussian quadrature points over an element.
-  //! It is supposed to perform all the necessary internal initializations
-  //! needed before the numerical integration is started for current element.
   virtual bool initElement(const std::vector<int>& MNPC, LocalIntegral& elmInt);
 
-  //! \brief Initializes current element for numerical boundary integration (mixed)
-  //! \param[in] MNPC1 Nodal point correspondence for basis 1
-  //! \param[in] MNPC2 Nodal point correspondence for basis 2
+  //! \brief Initializes current element for boundary integration.
+  //! \param[in] MNPC Nodal point correspondence for each basis
+  //! \param[in] elem_sizes Size of each basis on the element
+  //! \param[in] basis_sizes Size of each basis on the patch level
   //! \param elmInt The local integral object for current element
   virtual bool initElementBou(const std::vector<int>& MNPC,
                               const std::vector<size_t>& elem_sizes,
@@ -147,6 +146,7 @@ public:
   //! \param elmInt Local integral for element
   virtual bool initElementBou(const std::vector<int>& MNPC,
                               LocalIntegral& elmInt);
+
   //! \brief Evaluates the integrand at an interior point
   //! \param elmInt The local integral object to receive the contributions
   //! \param[in] fe Finite element data of current integration point

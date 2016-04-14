@@ -7,7 +7,7 @@
 //!
 //! \author Yared Bekele
 //!
-//! \brief Main program for the isogeometric solver for Poroelasticity
+//! \brief Main program for the isogeometric poroelasticity solver.
 //!
 //==============================================================================
 
@@ -16,57 +16,76 @@
 #include "SIM3D.h"
 #include "SIMPoroElasticity.h"
 #include "SIMSolver.h"
+#include "InitialConditionHandler.h"
 #include "ASMmxBase.h"
-#include "Utilities.h"
-#include "Profiler.h"
-#include "HDF5Writer.h"
-#include "XMLWriter.h"
 #include "AppCommon.h"
+#include "Profiler.h"
 
 
-  template<class Dim>
-int runSimulator(char* infile, bool mixed)
+template<class Dim> int runSimulator (char* infile)
 {
+  utl::profiler->start("Model input");
+  IFEM::cout <<"\n\n0. Parsing input file(s)."
+             <<"\n========================="<< std::endl;
+
+  // Establish the poroelastic FE model
   std::vector<unsigned char> fields;
-  if (mixed)
-    fields = {Dim::dimension, 1};
-  else
-    fields = {Dim::dimension+1};
+  if (ASMmxBase::Type > ASMmxBase::NONE)
+    fields = { Dim::dimension, 1 };
+   else
+    fields = { Dim::dimension+1 };
   SIMPoroElasticity<Dim> model(fields);
+  if (!model.read(infile))
+    return 1;
+  else
+    model.opt.print(IFEM::cout) << std::endl;
+
+  // Establish the simulation driver
   SIMSolver< SIMPoroElasticity<Dim> > solver(model);
-
-  int res = ConfigureSIM(model,infile,true);
-  if (res)
-    return res;
-
   if (!solver.read(infile))
-    return 3;
+    return 1;
+
+  utl::profiler->stop("Model input");
+  IFEM::cout <<"\n\n10. Preprocessing the finite element model:"
+             <<"\n==========================================="<< std::endl;
+
+  // Preprocess the model and establish data structures for the algebraic system
+  if (!model.preprocess())
+    return 2;
+
+  // Initialize the linear solvers
+  if (!model.initSystem(model.opt.solver))
+    return 2;
+
+  // Initialize the solution fields
+  model.init(TimeStep());
+  SIM::setInitialConditions(model);
 
   // HDF5 output
   DataExporter* exporter = nullptr;
   if (model.opt.dumpHDF5(infile))
-    exporter = SIM::handleDataOutput(model, solver, model.opt.hdf5,
-                                     false, model.getDumpInterval(), 1);
+    exporter = SIM::handleDataOutput(model,solver,model.opt.hdf5,false,1,1);
 
-  if (solver.solveProblem(infile, exporter))
-    return 5;
+  int res = solver.solveProblem(infile,exporter,"100. Starting the simulation");
 
   delete exporter;
-
-  return 0;
+  return res;
 }
 
 
-int main(int argc, char ** argv)
+/*!
+  \brief Main program for NURBS-based poroelasticity solver.
+*/
+
+int main (int argc, char ** argv)
 {
   Profiler prof(argv[0]);
   utl::profiler->start("Initialization");
 
-  std::vector<int> ignoredPatches;
   int i;
-  char ndim = 3;
   char* infile = 0;
-  bool mixed = false;
+  bool twoD = false;
+  ASMmxBase::Type = ASMmxBase::NONE;
 
   IFEM::Init(argc,argv);
 
@@ -74,38 +93,34 @@ int main(int argc, char ** argv)
     if (SIMoptions::ignoreOldOptions(argc,argv,i))
       ; // ignore the obsolete option
     else if (!strcmp(argv[i],"-2D"))
-      ndim = 2;
-    else if (!strcmp(argv[i],"-mixed")) {
+      twoD = SIMElasticity<SIM2D>::planeStrain = true;
+    else if (!strcmp(argv[i],"-mixed"))
       ASMmxBase::Type = ASMmxBase::FULL_CONT_RAISE_BASIS1;
-      mixed = true;
-    }
     else if (!infile)
       infile = argv[i];
     else
-      std::cerr << "*** Unknown option ignored: " << argv[i] << std::endl;
+      std::cerr <<"*** Unknown option ignored: "<< argv[i] << std::endl;
 
   if (!infile)
   {
-    IFEM::cout << "Usage: " << argv[0]
-               << " <inputfile> [-dense|-spr|-superlu[<nt>]|-samg|-petsc]\n      "
-               << " [-free] [-lag|-spec|-LR] [-1D|-2D] [-mixed] [-nGauss <n>]"
-               << "\n       [-vtf <format> [-nviz <nviz>]"
-               << " [-nu <nu> [-nv <nv>] [-nw <nw>]] [-hdf5]"<< std::endl;
+    std::cout <<"Usage: "<< argv[0]
+              <<" <inputfile> [-dense|-spr|-superlu[<nt>]|-samg|-petsc]\n"
+              <<"       [-lag|-spec|-LR] [-2D] [-mixed] [-nGauss <n>]\n"
+              <<"       [-vtf <format> [-nviz <nviz>] [-nu <nu> [-nv <nv>]"
+              <<" [-nw <nw>]] [-hdf5]\n";
     return 0;
   }
 
-  IFEM::cout << "\n >>> IFEM Poroelasticity Solver <<<"
-             << "\n =================================="
-             << "\n Executing command:\n";
-  for (i = 0; i < argc; i++) IFEM::cout << " " << argv[i];
-  IFEM::cout << "\n\n Input file: " << infile;
+  IFEM::cout <<"\n >>> IFEM Poroelasticity Solver <<<"
+             <<"\n =================================="
+             <<"\n Executing command:\n";
+  for (i = 0; i < argc; i++) IFEM::cout <<" "<< argv[i];
+  IFEM::cout <<"\n\n Input file: "<< infile;
   IFEM::getOptions().print(IFEM::cout);
   IFEM::cout << std::endl;
 
-  if (ndim == 3)
-    return runSimulator<SIM3D>(infile, mixed);
-  else if (ndim == 2)
-    return runSimulator<SIM2D>(infile, mixed);
-
-  return 1;
+  if (twoD)
+    return runSimulator<SIM2D>(infile);
+  else
+    return runSimulator<SIM3D>(infile);
 }

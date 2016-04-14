@@ -16,68 +16,53 @@
 
 #include "SIMElasticity.h"
 #include "PoroElasticity.h"
-#include "PoroMaterial.h"
 #include "DataExporter.h"
-#include "InitialConditionHandler.h"
-#include "SIMSolver.h"
-#include "Vec3Oper.h"
-#include "Profiler.h"
 
 
 /*!
-  \brief Driver class for poro-elastic simulators.
+  \brief Driver class for poroelastic simulators.
 */
 
 template<class Dim> class SIMPoroElasticity : public SIMElasticity<Dim>
 {
 public:
-  //! \brief Dummy declaration, no setup properties needed
-  typedef bool SetupProps;
-
-  //! \brief The constructor allocates the problem integrand.
+  //! \brief The constructor sets the number of solution fields for each basis.
   SIMPoroElasticity(const std::vector<unsigned char>& fields)
   {
-    Dim::myProblem = new PoroElasticity(Dim::dimension);
     Dim::nf = fields;
+    Dim::msgLevel = 1;
+    Dim::myHeading = "Poroelasticity solver";
+    SIMElasticity<Dim>::myContext = "poroelasticity";
   }
 
   //! \brief Empty destructor.
   virtual ~SIMPoroElasticity() {}
 
-  using SIMElasticity<Dim>::parse;
-  //! \brief Parses a data section from an XML element.
-  virtual bool parse(const TiXmlElement* elem)
-  {
-    if (strcasecmp(elem->Value(),"poroelasticity"))
-      return this->SIMElasticity<Dim>::parse(elem);
-
-    std::vector<Material*>& mDat = SIMElasticity<Dim>::mVec;
-
-    const TiXmlElement* child = elem->FirstChildElement();
-    for (; child; child = child->NextSiblingElement())
-      if (!strcasecmp(child->Value(),"scaling")) {
-        double sc = 1.0e14;
-        utl::getAttribute(child,"value",sc);
-        static_cast<PoroElasticity*>(Dim::myProblem)->setScaling(sc);
-        IFEM::cout <<"\tScaling: sc = "<< sc << std::endl;
-      }
-      else if (!strcasecmp(child->Value(),"isotropic")) {
-        int code = this->parseMaterialSet(child,mDat.size());
-        std::cout <<"\tMaterial code "<< code <<":" << std::endl;
-        mDat.push_back(new PoroMaterial);
-        mDat.back()->parse(child);
-      }
-      else
-        this->SIMElasticity<Dim>::parse(child);
-
-    if (!mDat.empty())
-      static_cast<Elasticity*>(Dim::myProblem)->setMaterial(mDat.front());
-
-    return true;
-  }
-
   //! \brief Returns the name of this simulator (for use in the HDF5 export).
   virtual std::string getName() const { return "PoroElasticity"; }
+
+  //! \brief Registers solution fields for data output.
+  void registerFields(DataExporter& exporter)
+  {
+    int flag = DataExporter::PRIMARY;
+    if (!Dim::opt.pSolOnly)
+      flag |= DataExporter::SECONDARY;
+    exporter.registerField("u","solution",DataExporter::SIM,flag);
+    exporter.setFieldValue("u",this,&this->getSolution());
+  }
+
+  //! \brief Initializes the solution vectors.
+  virtual bool init(const TimeStep&)
+  {
+    bool ok = this->setMode(SIM::STATIC);
+
+    solution.resize(this->getNoSolutions());
+    for (size_t i = 0; i < solution.size(); i++)
+      solution[i].resize(this->getNoDOFs(),true);
+
+    this->setQuadratureRule(Dim::opt.nGauss[0],true);
+    return ok;
+  }
 
   //! \brief Opens a new VTF-file and writes the model geometry to it.
   //! \param[in] fileName File name used to construct the VTF-file name from
@@ -95,7 +80,7 @@ public:
   //! \brief Saves the converged results of a given time step to VTF file.
   //! \param[in] tp Time stepping parameters
   //! \param nBlock Running result block counter
-  bool saveStep(const TimeStep& tp, int& nBlock)
+  virtual bool saveStep(const TimeStep& tp, int& nBlock)
   {
     if (tp.step%Dim::opt.saveInc > 0 || Dim::opt.format < 0)
       return true;
@@ -107,51 +92,32 @@ public:
     return this->writeGlvStep(iDump,tp.time.t);
   }
 
-  //! \brief Initializes the simulator time stepping loop.
-  bool init()
-  {
-    solution.resize(this->getNoSolutions());
-    for (size_t i=0;i<solution.size();++i)
-      solution[i].resize(this->getNoDOFs(),true);
-
-    this->registerField("init1", solution[0]);
-    this->registerField("init2", solution[1]);
-
-    SIM::setInitialConditions(*this);
-    return true;
-  }
-
   //! \brief Advances the time step one step forward.
-  bool advanceStep(TimeStep&)
+  virtual bool advanceStep(TimeStep& tp)
   {
     // Update vectors between time steps
     const int nNusols = solution.size();
     for (int n = nNusols-1; n > 0; n--)
       solution[n] = solution[n-1];
 
-    return true;
+    return this->SIMElasticity<Dim>::advanceStep(tp);
   }
 
   //! \brief Computes the solution for the current time step.
-  bool solveStep(TimeStep& tp)
+  virtual bool solveStep(TimeStep& tp)
   {
     if (Dim::msgLevel >= 0)
-      IFEM::cout <<"\n  step = "<< tp.step <<"  time = "<< tp.time.t << std::endl;
+      IFEM::cout <<"\n  step = "<< tp.step
+                 <<"  time = "<< tp.time.t << std::endl;
 
-    if (!this->assembleSystem(tp.time, solution))
+    if (!this->assembleSystem(tp.time,solution))
       return false;
 
-    if (!this->solveSystem(solution.front(), Dim::msgLevel-1,"displacement+pressure"))
+    if (!this->solveSystem(solution.front()))
       return false;
 
+    this->printSolutionSummary(solution.front(),0,"solution",0);
     return true;
-  }
-
-  //! \brief Register fields for data export
-  void registerFields(DataExporter& exporter)
-  {
-    exporter.registerField("u,p","primary",DataExporter::SIM,DataExporter::PRIMARY);
-    exporter.setFieldValue("u,p",this,&solution.front());
   }
 
   //! \brief Prints a summary of the calculated solution to std::cout.
@@ -189,36 +155,20 @@ public:
     utl::printSyncronized(std::cout,str,this->adm.getProcId());
   }
 
+protected:
+  //! \brief Returns the actual integrand.
+  virtual Elasticity* getIntegrand()
+  {
+    if (!Dim::myProblem)
+      Dim::myProblem = new PoroElasticity(Dim::dimension);
+    return static_cast<Elasticity*>(Dim::myProblem);
+  }
+
+  //! \brief Returns a const reference to current solution vector.
+  virtual const Vector& getSolution(int idx = 0) const { return solution[idx]; }
+
 private:
   Vectors solution; //!< Solution vectors
-};
-
-
-//! \brief Partial specialization for configurator
-template<class Dim>
-struct SolverConfigurator< SIMPoroElasticity<Dim> > {
-  int setup(SIMPoroElasticity<Dim>& pe, const bool&, char* infile)
-  {
-    utl::profiler->start("Model input");
-
-    // Read input file
-    if(!pe.read(infile))
-      return 1;
-
-    utl::profiler->stop("Model input");
-
-    // Configure finite element library
-    if(!pe.preprocess())
-      return 2;
-
-    // Setup integration
-    pe.setQuadratureRule(pe.opt.nGauss[0],true);
-    pe.initSystem(pe.opt.solver);
-    pe.setMode(SIM::DYNAMIC);
-    pe.init();
-
-    return 0;
-  }
 };
 
 #endif
