@@ -26,7 +26,14 @@
 template<class Dim> class SIMPoroElasticity : public SIMElasticity<Dim>
 {
 public:
-  //! \brief The constructor sets the number of solution fields for each basis.
+  //! \brief Default constructor.
+  SIMPoroElasticity()
+  {
+    Dim::msgLevel = 1;
+    Dim::myHeading = "Elasticity solver";
+  }
+
+  //! \brief This constructor sets the number of solution fields for each basis.
   SIMPoroElasticity(const std::vector<unsigned char>& fields)
   {
     Dim::nf = fields;
@@ -66,15 +73,10 @@ public:
 
   //! \brief Opens a new VTF-file and writes the model geometry to it.
   //! \param[in] fileName File name used to construct the VTF-file name from
-  //! \param[out] geoBlk Running geometry block counter
-  //! \param[out] nBlock Running result block counter
-  bool saveModel(char* fileName, int& geoBlk, int& nBlock)
+  //! \param geoBlk Running geometry block counter
+  bool saveModel(char* fileName, int& geoBlk, int&)
   {
-    if (Dim::opt.format < 0)
-      return true;
-
-    nBlock = 0;
-    return this->writeGlvG(geoBlk,fileName);
+    return Dim::opt.format < 0 ? true : this->writeGlvG(geoBlk,fileName);
   }
 
   //! \brief Saves the converged results of a given time step to VTF file.

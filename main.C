@@ -1,7 +1,7 @@
 // $Id$
 //==============================================================================
 //!
-//! \file main_PoroElasticity.C
+//! \file main.C
 //!
 //! \date April 16 2015
 //!
@@ -21,6 +21,11 @@
 #include "AppCommon.h"
 #include "Profiler.h"
 
+
+/*!
+  \brief Creates the poroelastic simulator and launches the simulation.
+  \param[in] infile The input file to parse
+*/
 
 template<class Dim> int runSimulator (char* infile)
 {
