@@ -89,21 +89,6 @@ public:
   //! \brief Returns the current gravity vector (for unit testing).
   const Vec3 getGravity() const { return gravity; }
 
-  //! \brief Computes the stiffness matrix for a quadrature point.
-  bool evalStiffnessMatrix(Matrix& mx, const Matrix &B, const Matrix &C, double detJxW) const;
-
-  //! \brief Computes the coupling matrix for a quadrature point.
-  bool evalCouplingMatrix(Matrix &mx, const Matrix &B, const Vector &basis,
-                          double scl, double alpha, const Vector &m, double detJxW) const;
-
-  //! \brief Computes the compressibility matrix for a quadrature point.
-  bool evalCompressibilityMatrix(Matrix &mx, const Vector &basis,
-                                 double scl, double Minv, double detJxW) const;
-
-  //! \brief Computes the permeability matrix for a quadrature point.
-  bool evalPermeabilityMatrix(Matrix &mx, const Matrix &grad, double scl,
-                              const Vec3 &permeability, double acc_dens, double detJxW) const;
-
   //! \brief Returns a local integral contribution object for the given element.
   //! \param[in] nen Number of nodes on element for each basis
   //! \param[in] neumann Whether or not we are assembling Neumann BCs
@@ -132,20 +117,16 @@ public:
   virtual bool initElement(const std::vector<int>& MNPC, LocalIntegral& elmInt);
 
   //! \brief Initializes current element for boundary integration.
-  //! \param[in] MNPC Nodal point correspondence for each basis
-  //! \param[in] elem_sizes Size of each basis on the element
-  //! \param[in] basis_sizes Size of each basis on the patch level
-  //! \param elmInt The local integral object for current element
-  virtual bool initElementBou(const std::vector<int>& MNPC,
-                              const std::vector<size_t>& elem_sizes,
-                              const std::vector<size_t>& basis_sizes,
-                              LocalIntegral& elmInt);
+  //! \details Does nothing, solution vectors not needed.
+  virtual bool initElementBou(const std::vector<int>&,
+                              const std::vector<size_t>&,
+                              const std::vector<size_t>&,
+                              LocalIntegral&) { return true; }
 
   //! \brief Initializes current element for boundary integration.
-  //! \param[in] MNPC Matrix of nodal point correspondance for current element
-  //! \param elmInt Local integral for element
-  virtual bool initElementBou(const std::vector<int>& MNPC,
-                              LocalIntegral& elmInt);
+  //! \details Does nothing, solution vectors not needed.
+  virtual bool initElementBou(const std::vector<int>&,
+                              LocalIntegral&) { return true; }
 
   //! \brief Evaluates the integrand at an interior point
   //! \param elmInt The local integral object to receive the contributions
@@ -162,26 +143,15 @@ public:
   //! \param[in] X Cartesian coordinates of current integration point
   virtual bool evalInt(LocalIntegral& elmInt, const FiniteElement& fe,
                        const TimeDomain& time, const Vec3& X) const;
-
-  //! \brief Evaluates the integrand at a boundary point
+ 
+  //! \brief Evaluates the integrand at a boundary point.
   //! \param elmInt The local interal object to receive the contributions
   //! \param[in] fe Finite element data of current integration point
-  //! \param[in] time Parameters for nonlinear and time-dependent simulations
   //! \param[in] X Cartesian coordinates of current integration point
   //! \param[in] normal Boundary normal vector at current integration point
   virtual bool evalBouMx(LocalIntegral& elmInt, const MxFiniteElement& fe,
-                         const TimeDomain& time, const Vec3& X,
+                         const TimeDomain&, const Vec3& X,
                          const Vec3& normal) const;
-
-  //! \brief Evaluates the integrand at a boundary point
-  //! \param elmInt The local interal object to receive the contributions
-  //! \param[in] fe Finite element data of current integration point
-  //! \param[in] time Parameters for nonlinear and time-dependent simulations
-  //! \param[in] X Cartesian coordinates of current integration point
-  //! \param[in] normal Boundary normal vector at current integration point
-  virtual bool evalBou(LocalIntegral& elmInt, const FiniteElement& fe,
-                       const TimeDomain& time, const Vec3& X,
-                       const Vec3& normal) const;
 
   using IntegrandBase::evalSol;
   //! \brief Evaluates the secondary solution at a result point.
@@ -238,6 +208,27 @@ private:
   //! \brief Initializes the local integral
   void initLocalIntegral(ElmMats *result, size_t ndof_displ,
                          size_t ndof_press, bool neumann) const;
+
+  //! \brief Computes the coupling matrix for a quadrature point.
+  bool evalCouplingMatrix(Matrix& mx, const Matrix& B, const Vector& N,
+                          double scl) const;
+
+  //! \brief Computes the compressibility matrix for a quadrature point.
+  bool evalCompressibilityMatrix(Matrix& mx, const Vector& N, double scl) const;
+
+  //! \brief Computes the permeability matrix for a quadrature point.
+  bool evalPermeabilityMatrix(Matrix& mx, const Matrix& dNdX,
+                              const Vec3& permeability, double scl) const;
+
+protected:
+  //! \brief Computes the elasticity matrices for a quadrature point.
+  //! \param elmInt The element matrix object to receive the contributions
+  //! \param[in] B Strain-displacement matrix of current integration point
+  //! \param[in] fe Finite element data of current integration point
+  //! \param[in] X Cartesian coordinates of current integration point
+  virtual bool evalElasticityMatrices(ElmMats& elMat, const Matrix& B,
+                                      const FiniteElement& fe,
+                                      const Vec3& X) const;
 
 private:
   double sc;   //!< Scaling factor

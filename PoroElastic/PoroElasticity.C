@@ -76,7 +76,7 @@ void PoroElasticity::MixedElmMats::makeNewtonMatrix_U(Matrix& N) const
 {
   size_t n = A[uu].rows();
   N.fillBlock(A[uu], 1, 1);
-  N.fillBlock(A[up], 1, 1+n);
+  N.addBlock(A[up], -1.0, 1, 1+n);
 }
 
 
@@ -140,7 +140,7 @@ void PoroElasticity::NonMixedElmMats::makeNewtonMatrix_U(Matrix& N) const
     for (size_t j = 1; j <= n; ++j) {
       for (size_t l = 1; l <= nsd; ++l) {
         // UP-coupling
-        N(nf*(i-1)+l, j*nf) = A[up](nsd*(i-1)+l, j);
+        N(nf*(i-1)+l, j*nf) = -A[up](nsd*(i-1)+l, j);
         for (size_t k = 1; k <= nsd; ++k) {
           // UU-coupling
           N(nf*(i-1)+l, (j-1)*nf+k) = A[uu](nsd*(i-1)+l, (j-1)*nsd+k);
@@ -275,15 +275,6 @@ bool PoroElasticity::initElement (const std::vector<int>& MNPC,
 }
 
 
-bool PoroElasticity::initElementBou (const std::vector<int>& MNPC,
-                                     const std::vector<size_t>& elem_sizes,
-                                     const std::vector<size_t>& basis_sizes,
-                                     LocalIntegral& elmInt)
-{
-  return this->initElement(MNPC,elem_sizes,basis_sizes,elmInt);
-}
-
-
 bool PoroElasticity::initElement (const std::vector<int>& MNPC,
                                   LocalIntegral& elmInt)
 {
@@ -310,41 +301,38 @@ bool PoroElasticity::initElement (const std::vector<int>& MNPC,
 }
 
 
-bool PoroElasticity::initElementBou (const std::vector<int>& MNPC,
-                                     LocalIntegral& elmInt)
-{
-  return this->initElement(MNPC,elmInt);
-}
-
-
 bool PoroElasticity::evalIntMx (LocalIntegral& elmInt,
                                 const MxFiniteElement& fe,
                                 const TimeDomain& time, const Vec3& X) const
 {
-  return evalInt(elmInt, fe, time, X);
+  return this->evalInt(elmInt, fe, time, X);
 }
 
 
-bool PoroElasticity::evalStiffnessMatrix(Matrix& mx, const Matrix &B, const Matrix &C, double detJxW) const
+bool PoroElasticity::evalElasticityMatrices (ElmMats& elMat, const Matrix& B,
+                                             const FiniteElement& fe,
+                                             const Vec3& X) const
 {
+  Matrix C;
+  SymmTensor eps(nsd), sigma(nsd); double U = 0.0;
+  if (!material->evaluate(C,sigma,U,fe,X,eps,eps,0))
+    return false;
+
   Matrix CB;
-  CB.multiply(C, B, false, false);
-  CB *= -1.0 * detJxW;
-  mx.multiply(B, CB, true, false, true);
+  CB.multiply(C,B).multiply(fe.detJxW); // CB = dSdE*B*|J|*w
+  elMat.A[uu].multiply(B,CB,true,false,true); // EK += B^T * CB
 
   return true;
 }
 
 
-bool PoroElasticity::evalCouplingMatrix(Matrix &mx, const Matrix &B, const Vector &basis,
-                                        double scl, double alpha, const Vector &m, double detJxW) const
+bool PoroElasticity::evalCouplingMatrix (Matrix& mx, const Matrix& B,
+                                         const Vector& N, double scl) const
 {
-  const size_t nstrc = nsd * (nsd + 1) / 2;
-  Matrix K(basis.size(), nstrc);
-
-  for (size_t i = 1; i <= basis.size(); i++)
-    for (size_t j = 1; j <= nstrc; j++)
-      K(i,j) += scl * m(j) * alpha * basis(i) * detJxW;
+  Matrix K(N.size(), nsd * (nsd + 1) / 2);
+  for (size_t i = 1; i <= N.size(); i++)
+    for (size_t j = 1; j <= nsd; j++)
+      K(i,j) = scl * N(i);
 
   mx.multiply(B, K, true, true, true);
 
@@ -352,25 +340,27 @@ bool PoroElasticity::evalCouplingMatrix(Matrix &mx, const Matrix &B, const Vecto
 }
 
 
-bool PoroElasticity::evalCompressibilityMatrix(Matrix &mx, const Vector& basis,
-                                               double scl, double Minv, double detJxW) const
+bool PoroElasticity::evalCompressibilityMatrix (Matrix& mx, const Vector& N,
+                                                double scl) const
 {
   Matrix temp(mx.rows(), mx.cols());
-  temp.outer_product(basis, basis);
-  temp *= scl * scl * Minv * detJxW;
-  mx += temp;
+  if (!temp.outer_product(N,N))
+    return false;
+
+  mx.add(temp,scl);
 
   return true;
 }
 
 
-bool PoroElasticity::evalPermeabilityMatrix(Matrix &mx, const Matrix &grad, double scl,
-                                            const Vec3 &permeability, double acc_dens, double detJxW) const
+bool PoroElasticity::evalPermeabilityMatrix (Matrix& mx, const Matrix& dNdX,
+                                             const Vec3& permeability,
+                                             double scl) const
 {
-  for (size_t i = 1; i <= grad.rows(); i++)
-    for (size_t j = 1; j <= grad.rows(); j++)
+  for (size_t i = 1; i <= dNdX.rows(); i++)
+    for (size_t j = 1; j <= dNdX.rows(); j++)
       for (size_t k = 1; k <= nsd; k++)
-        mx(i,j) += scl * scl * permeability[k-1] / acc_dens * grad(i,k) * grad(j,k) * detJxW;
+        mx(i,j) += scl * permeability[k-1]  * dNdX(i,k) * dNdX(j,k);
 
   return true;
 }
@@ -387,19 +377,16 @@ bool PoroElasticity::evalInt (LocalIntegral& elmInt,
     return false;
   }
 
-  Matrix Bmat, Cmat;
+  Matrix Bmat;
   if (!this->formBmatrix(Bmat,fe.dNdX))
-    return false;
-
-  SymmTensor eps(nsd), sigma(nsd); double U = 0.0;
-  if (!material->evaluate(Cmat,sigma,U,fe,X,eps,eps,0))
     return false;
 
   Vec3 permeability = pmat->getPermeability(X);
 
-  double scl(sc);
+  double rhog = pmat->getFluidDensity(X) * gacc;
+  double scl = sc;
   if (scl == 0.0)
-    scl = sqrt(pmat->getStiffness(X) * pmat->getFluidDensity(X) * gacc / permeability[0] / time.dt);
+    scl = sqrt(pmat->getStiffness(X)*rhog/(permeability.x*time.dt));
 
   // Biot's coefficient
   double Ko = pmat->getBulkMedium(X);
@@ -411,68 +398,29 @@ bool PoroElasticity::evalInt (LocalIntegral& elmInt,
   // Inverse of the compressibility modulus
   double Minv = ((alpha - poro)/Ks) + (poro/Kw);
 
-  // Define the unit Voigt vector
-  Vector m(Cmat.rows());
-  for (size_t i = 1; i <= nsd; i++)
-    m(i) = 1.0;
-
-  if (!evalStiffnessMatrix(elMat.A[uu], Bmat, Cmat, fe.detJxW))
-    return false;
-  if (!evalCouplingMatrix(elMat.A[up], Bmat, fe.basis(2), scl, alpha, m, fe.detJxW))
-    return false;
-  if (!evalCompressibilityMatrix(elMat.A[pp_S], fe.basis(2), scl, Minv, fe.detJxW))
-    return false;
-  if (!evalPermeabilityMatrix(elMat.A[pp_P], fe.grad(2), scl, permeability,
-                              pmat->getFluidDensity(X) * gacc, fe.detJxW))
+  if (!this->evalElasticityMatrices(elMat, Bmat, fe, X))
     return false;
 
-  return true;
+  if (!this->evalCouplingMatrix(elMat.A[up], Bmat, fe.basis(2),
+                                scl*alpha*fe.detJxW))
+    return false;
+
+  if (!this->evalCompressibilityMatrix(elMat.A[pp_S], fe.basis(2), 
+                                       scl*scl*Minv*fe.detJxW))
+    return false;
+
+  return this->evalPermeabilityMatrix(elMat.A[pp_P], fe.grad(2),
+                                      permeability, scl*scl/rhog*fe.detJxW);
 }
 
 
 bool PoroElasticity::evalBouMx (LocalIntegral& elmInt,
                                 const MxFiniteElement& fe,
-                                const TimeDomain& time, const Vec3& X,
+                                const TimeDomain&, const Vec3& X,
                                 const Vec3& normal) const
 {
-  return evalBou(elmInt, fe, time, X, normal);
-}
-
-
-bool PoroElasticity::evalBou (LocalIntegral& elmInt,
-                              const FiniteElement& fe,
-                              const TimeDomain& time, const Vec3& X,
-                              const Vec3& normal) const
-{
-  if (!tracFld && !fluxFld)
-  {
-    std::cerr << " *** PoroElasticity::evalBouMx: No fluxes/tractions." << std::endl;
-    return false;
-  }
-
-  const PoroMaterial* pmat = dynamic_cast<const PoroMaterial*>(material);
-  if (!pmat) {
-    std::cerr << __FUNCTION__ << ": No material data." << std::endl;
-    return false;
-  }
-
-  // Evaluate the surface traction
-  Vec4 Xt = static_cast<const Vec4&>(X);
-  Xt.t = time.t;
-  Vec3 trac = this->getTraction(Xt, normal);
-  Vec3 permeability = pmat->getPermeability(X);
-
-  double scl(sc);
-  if (scl == 0.0)
-    scl = sqrt(pmat->getStiffness(X) * pmat->getFluidDensity(X) * gacc / permeability[0] / time.dt);
-
-  // Integrate the force vector fu
-  ElmMats& elMat = static_cast<ElmMats&>(elmInt);
-  for (size_t i = 1; i <= fe.basis(1).size(); i++)
-    for (unsigned short int j = 1; j <= nsd; j++)
-      elMat.b[Fu](nsd*(i-1)+j) += -1.0 * trac[j-1] * fe.basis(1)(i) * fe.detJxW;
-
-  return true;
+  // Using the inherited standard method from Elasticity
+  return this->evalBou(elmInt, fe, X, normal);
 }
 
 
