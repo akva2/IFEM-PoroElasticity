@@ -21,8 +21,6 @@
 #include "IFEM.h"
 #include "tinyxml.h"
 
-typedef std::vector<int> IntVec;  //!< General integer vector
-
 
 //! \brief Enum for element level solution vectors
 enum SolutionVectors
@@ -258,18 +256,23 @@ bool PoroElasticity::initElement (const std::vector<int>& MNPC,
                                   const std::vector<size_t>& basis_sizes,
                                   LocalIntegral& elmInt)
 {
-  if (primsol.front().empty()) return true;
+  if (primsol.empty() || primsol.front().empty())
+    return true;
+
+  // Split the nodal correspondance array into one for each solution field
+  std::vector<int>::const_iterator pStart = MNPC.begin() + elem_sizes.front();
+  std::vector<int> MNPCu(MNPC.begin(),pStart);
+  std::vector<int> MNPCp(pStart,MNPC.end());
 
   // Extract the element level solution vectors
-  elmInt.vec.resize(NSOL);
-  std::vector<int>::const_iterator fstart = MNPC.begin() + elem_sizes[0];
-  int ierr = utl::gather(IntVec(MNPC.begin(),fstart),nsd,primsol.front(),elmInt.vec[U])
-           + utl::gather(IntVec(fstart,MNPC.end()),0,1,primsol.front(),elmInt.vec[P],nsd*basis_sizes[0],basis_sizes[0]);
-
+  if (elmInt.vec.size() < NSOL) elmInt.vec.resize(NSOL);
+  int ierr = utl::gather(MNPCu, nsd, primsol.front(), elmInt.vec[U])
+           + utl::gather(MNPCp, 0,1, primsol.front(), elmInt.vec[P],
+                         nsd*basis_sizes.front(), basis_sizes.front());
   if (ierr == 0) return true;
 
-  std::cerr << " *** PoroElasticity::initElement: Detected " << ierr/3
-            << " node numbers out of range." << std::endl;
+  std::cerr <<" *** PoroElasticity::initElement: Detected "<< ierr/2
+            <<" node numbers out of range."<< std::endl;
 
   return false;
 }
@@ -282,20 +285,18 @@ bool PoroElasticity::initElement (const std::vector<int>& MNPC,
     return true;
 
   // Extract the element level solution vectors
-  elmInt.vec.resize(NSOL);
-  int ierr = 0;
-  Matrix temp(nsd+1, MNPC.size());
-  ierr += utl::gather(MNPC, nsd+1, primsol.front(), temp);
-  Matrix temp2(nsd, MNPC.size());
-  for (size_t k = 1; k <= nsd; ++k)
-    temp2.fillRow(k, temp.getRow(k).ptr());
-  elmInt.vec[U] = temp2;
-  elmInt.vec[P] = temp.getRow(nsd+1);
+  if (elmInt.vec.size() < NSOL) elmInt.vec.resize(NSOL);
+  Matrix temp(nsd+1,MNPC.size());
+  int ierr = utl::gather(MNPC, nsd+1, primsol.front(), temp);
+  if (ierr == 0)
+  {
+    elmInt.vec[P] = temp.getRow(nsd+1);
+    elmInt.vec[U] = temp.expandRows(-1);
+    return true;
+  }
 
-  if (ierr == 0) return true;
-
-  std::cerr << " *** PoroElasticity::initElement: Detected " << ierr/3
-            << " node numbers out of range." << std::endl;
+  std::cerr <<" *** PoroElasticity::initElement: Detected "<< ierr
+            <<" node numbers out of range."<< std::endl;
 
   return false;
 }
@@ -490,21 +491,20 @@ std::string PoroElasticity::getField2Name (size_t i, const char* prefix) const
 }
 
 
-bool PoroElasticity::evalSol(Vector& s, const MxFiniteElement& fe,
-                             const Vec3& X, const std::vector<int>& MNPC,
-                             const std::vector<size_t>& elem_sizes) const
+bool PoroElasticity::evalSol (Vector& s, const MxFiniteElement& fe,
+                              const Vec3& X, const std::vector<int>& MNPC,
+                              const std::vector<size_t>& elem_sizes) const
 {
   Vector eV;
-  std::vector<int>::const_iterator fstart = MNPC.begin() + elem_sizes[0];
-  utl::gather(IntVec(MNPC.begin(),fstart),nsd,primsol.front(),eV);
+  std::vector<int>::const_iterator fstart = MNPC.begin() + elem_sizes.front();
+  utl::gather(std::vector<int>(MNPC.begin(),fstart),nsd,primsol.front(),eV);
 
   return this->evalSolCommon(s,fe,X,Vector(eV.ptr(),nsd*fe.N.size()));
 }
 
 
-bool PoroElasticity::evalSol(Vector& s, const FiniteElement& fe,
-                             const Vec3& X,
-                             const std::vector<int>& MNPC) const
+bool PoroElasticity::evalSol (Vector& s, const FiniteElement& fe,
+                              const Vec3& X, const std::vector<int>& MNPC) const
 {
   Vector eV;
   utl::gather(MNPC,nsd+1,primsol.front(),eV);
