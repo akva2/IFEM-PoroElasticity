@@ -68,7 +68,11 @@ void PoroElasticity::printLog () const
 LocalIntegral* PoroElasticity::getLocalIntegral (const std::vector<size_t>& nen,
                                                  size_t, bool neumann) const
 {
-  ElmMats* result = new MixedElmMats(nsd * nen[0], nen[1], neumann);
+  ElmMats* result;
+  if (m_mode == SIM::DYNAMIC)
+    result = new NewmarkMats<MixedElmMats>(nsd * nen[0], nen[1], neumann, 0.25, 0.5);
+  else
+    result = new MixedElmMats(nsd * nen[0], nen[1], neumann);
   return result;
 }
 
@@ -76,7 +80,11 @@ LocalIntegral* PoroElasticity::getLocalIntegral (const std::vector<size_t>& nen,
 LocalIntegral* PoroElasticity::getLocalIntegral (size_t nen,
                                                  size_t, bool neumann) const
 {
-  ElmMats* result = new NonMixedElmMats(nsd * nen, nen, neumann);
+  ElmMats* result;
+  if (m_mode == SIM::DYNAMIC)
+    result = new NewmarkMats<NonMixedElmMats>(nsd * nen, nen, neumann, 0.25, 0.5);
+  else
+    result = new NonMixedElmMats(nsd * nen, nen, neumann);
   return result;
 }
 
@@ -229,6 +237,7 @@ bool PoroElasticity::evalInt (LocalIntegral& elmInt,
 
   Vec3 permeability = pmat->getPermeability(X);
 
+  double rhot = pmat->getMassDensity(X);
   double rhog = pmat->getFluidDensity(X) * gacc;
   double scl = sc;
   if (scl == 0.0)
@@ -243,6 +252,10 @@ bool PoroElasticity::evalInt (LocalIntegral& elmInt,
   double alpha = 1.0 - (Ko/Ks);
   // Inverse of the compressibility modulus
   double Minv = ((alpha - poro)/Ks) + (poro/Kw);
+
+  if (m_mode == SIM::DYNAMIC && !this->evalMassMatrix(elMat.A[uu_M], fe.basis(1),
+                                                      rhot*fe.detJxW))
+    return false;
 
   if (!this->evalElasticityMatrices(elMat, Bmat, fe, X))
     return false;
@@ -274,26 +287,46 @@ bool PoroElasticity::finalizeElement (LocalIntegral& elmInt, const TimeDomain& t
 {
   Mats& elMat = static_cast<Mats&>(elmInt);
 
-  // Construct the system matrix
-  elMat.add_uu(uu_K, sys);
-  elMat.add_up(up, sys, -1.0);
-  elMat.add_pu(up, sys);
-  elMat.add_pp(pp_S, sys);
-  elMat.add_pp(pp_P, sys, time.dt);
-
-  // Construct the geometric stiffness matrix
+  // Consturct the C-matrix (needed by both)
   elMat.add_pu(up, sys_C);
   elMat.add_pp(pp_S, sys_C);
 
-  // Contribution to RHS from previous timestep
-  elMat.form_vector(elmInt.vec[U], elmInt.vec[P], Fprev);
-  elMat.b[Fprev] = elMat.A[sys_C] * elMat.b[Fprev];
+  if (m_mode != SIM::DYNAMIC) {
+    // Construct the system matrix
+    elMat.add_uu(uu_K, sys);
+    elMat.add_up(up, sys, -1.0);
+    elMat.add_pu(up, sys);
+    elMat.add_pp(pp_S, sys);
+    elMat.add_pp(pp_P, sys, time.dt);
 
-  // Contribution to RHS from current timestep
-  elMat.b[Fp] *= time.dt;
-  elMat.form_vector(elMat.b[Fu], elMat.b[Fp], Fcur);
+    // Contribution to RHS from previous timestep
+    elMat.form_vector(elmInt.vec[U], elmInt.vec[P], Fprev);
+    elMat.b[Fprev] = elMat.A[sys_C] * elMat.b[Fprev];
 
-  elMat.b[Fsys] = elMat.b[Fcur] + elMat.b[Fprev];
+    // Contribution to RHS from current timestep
+    elMat.b[Fp] *= time.dt;
+    elMat.form_vector(elMat.b[Fu], elMat.b[Fp], Fsys);
+
+    elMat.b[Fsys] += elMat.b[Fprev];
+  } else {
+    // Construct the M-matrix
+    elMat.add_uu(uu_M, sys_M, -1.0);
+
+    // Construct the C-matrix
+    elMat.add_pu(up, sys_C);
+    elMat.add_pp(pp_S, sys_C);
+
+    // Construct the K-matrix
+    elMat.add_uu(uu_K, sys_K);
+    elMat.add_up(up, sys_K, -1.0);
+    elMat.add_pp(pp_P, sys_K);
+
+    // In case of dynamic mode, we add the zero-order contribution
+    // to the RHS already here, due to (possibly) nonlinear terms
+    elMat.form_vector(elMat.b[Fu], elMat.b[Fp], Fsys);
+    elMat.form_vector(elmInt.vec[U], elmInt.vec[P], Fprev);
+    elMat.b[Fsys] -= elMat.A[sys_K] * elMat.b[Fprev];
+  }
 
   return true;
 }
@@ -304,11 +337,9 @@ bool PoroElasticity::finalizeElementBou (LocalIntegral& elmInt, const FiniteElem
 {
   Mats& elMat = static_cast<Mats&>(elmInt);
 
-  // Contribution to RHS from current timestep
-  elMat.b[Fp] *= time.dt;
-  elMat.form_vector(elMat.b[Fu], elMat.b[Fp], Fcur);
-
-  elMat.b[Fsys] = elMat.b[Fcur] + elMat.b[Fprev];
+  if (m_mode != SIM::DYNAMIC)
+    elMat.b[Fp] *= time.dt;
+  elMat.form_vector(elMat.b[Fu], elMat.b[Fp], Fsys);
 
   return true;
 }

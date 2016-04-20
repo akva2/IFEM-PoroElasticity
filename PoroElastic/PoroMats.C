@@ -30,7 +30,6 @@ PoroElasticity::Mats::Mats(size_t ndof_displ, size_t ndof_press, bool neumann)
   b[Fprev].resize(ndof_tot);
   b[Fu].resize(ndof_displ);
   b[Fp].resize(ndof_press);
-  b[Fres].resize(ndof_tot);
 
   if (!neumann) {
     A[sys].resize(ndof_tot, ndof_tot);
