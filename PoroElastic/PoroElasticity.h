@@ -25,47 +25,80 @@
 class PoroElasticity : public Elasticity
 {
   /*!
-   * \brief Class representing an element matrix for the mixed PoroElasticity problem
+   * \brief Superclass for PoroElaticity element matrices
    */
-  class MixedElmMats : public ElmMats
+  class Mats : public ElmMats
   {
   public:
     //! \brief Default constructor
-    MixedElmMats();
+    //! \param[in] ndof_displ Number of dofs in displacement
+    //! \param[in] ndof_press Number of dofs in pressure
+    //! \param[in] neumann Whether or not we are assembling Neumann BCs
+    Mats(size_t ndof_displ, size_t ndof_press, bool neumann);
     //! \brief Empty destructor
-    virtual ~MixedElmMats() {}
+    ~Mats() {}
     //! \brief Returns the element level Newton matrix
     virtual const Matrix& getNewtonMatrix() const;
     //! \brief Returns the element level RHS vector
     virtual const Vector& getRHSVector() const;
-    //! \brief Fills in the force balance part in the Newton matrix.
-    //! \note Separated for reuse in finalizeElement.
-    void makeNewtonMatrix_U(Matrix &N) const;
-    //! \brief Fills in the mass balance part in the Newton matrix.
-    //! \note Separated for reuse in finalizeElement.
-    void makeNewtonMatrix_P(Matrix& N, size_t pp_idx) const;
+    //! \brief Adds in a UU-matrix to a system matrix
+    virtual void add_uu(size_t source, size_t target, double scale = 1.0) = 0;
+    //! \brief Adds in a UP-matrix to a system matrix
+    virtual void add_up(size_t source, size_t target, double scale = 1.0) = 0;
+    //! \brief Adds in the transpose of a UP-matrix to a system matrix
+    virtual void add_pu(size_t source, size_t target, double scale = 1.0) = 0;
+    //! \brief Adds in a PP-matrix to a system matrix
+    virtual void add_pp(size_t source, size_t target, double scale = 1.0) = 0;
+    //! \brief Forms a system vector out of two sub-vectors
+    virtual void form_vector(const Vector &u, const Vector &p, size_t target) = 0;
+  protected:
+    size_t ndof_displ, ndof_press, nsd;
+  };
+
+  /*!
+   * \brief Class representing an element matrix for the mixed PoroElasticity problem
+   */
+  class MixedElmMats : public Mats
+  {
+  public:
+    //! \brief Default constructor
+    MixedElmMats(size_t ndof_displ, size_t ndof_press, bool neumann)
+      : Mats(ndof_displ, ndof_press, neumann) {}
+    //! \brief Empty destructor
+    virtual ~MixedElmMats() {}
+    //! \brief Adds in a UU-matrix to a system matrix
+    virtual void add_uu(size_t source, size_t target, double scale = 1.0);
+    //! \brief Adds in a UP-matrix to a system matrix
+    virtual void add_up(size_t source, size_t target, double scale = 1.0);
+    //! \brief Adds in the transpose of a UP-matrix to a system matrix
+    virtual void add_pu(size_t source, size_t target, double scale = 1.0);
+    //! \brief Adds in a PP-matrix to a system matrix
+    virtual void add_pp(size_t source, size_t target, double scale = 1.0);
+    //! \brief Forms a system vector out of two sub-vectors
+    virtual void form_vector(const Vector &u, const Vector &p, size_t target);
   };
 
   /*!
    * \brief Class representing an element matrix for the non-mixed PoroElasticity problem
    */
-  class NonMixedElmMats : public ElmMats
+  class NonMixedElmMats : public Mats
   {
   public:
     //! \brief Default constructor
-    NonMixedElmMats();
+    NonMixedElmMats(size_t ndof_displ, size_t ndof_press, bool neumann)
+      : Mats(ndof_displ, ndof_press, neumann) {}
     //! \brief Empty destructor
     virtual ~NonMixedElmMats() {}
-    //! \brief Returns the element level Newton matrix
-    virtual const Matrix& getNewtonMatrix() const;
-    //! \brief Returns the element level RHS vector
-    virtual const Vector& getRHSVector() const;
-    //! \brief Fills in the force balance part in the Newton matrix.
-    //! \note Separated for reuse in finalizeElement.
-    void makeNewtonMatrix_U(Matrix &N) const;
-    //! \brief Fills in the mass balance part in the Newton matrix.
-    //! \note Separated for reuse in finalizeElement.
-    void makeNewtonMatrix_P(Matrix& N, size_t pp_idx) const;
+    //! \brief Adds in a UU-matrix to a system matrix
+    virtual void add_uu(size_t source, size_t target, double scale = 1.0);
+    //! \brief Adds in a UP-matrix to a system matrix
+    virtual void add_up(size_t source, size_t target, double scale = 1.0);
+    //! \brief Adds in the transpose of a UP-matrix to a system matrix
+    virtual void add_pu(size_t source, size_t target, double scale = 1.0);
+    //! \brief Adds in a PP-matrix to a system matrix
+    virtual void add_pp(size_t source, size_t target, double scale = 1.0);
+    //! \brief Forms a system vector out of two sub-vectors
+    virtual void form_vector(const Vector &u, const Vector &p, size_t target);
   };
 
 public:
@@ -74,6 +107,10 @@ public:
   PoroElasticity(unsigned short int n = 3);
   //! \brief Empty destructor.
   virtual ~PoroElasticity() {}
+
+  //! \brief Defines the solution mode before the element assembly is started.
+  //! \param[in] mode The solution mode to use
+  virtual void setMode(SIM::SolutionMode mode);
 
   using Elasticity::parseMatProp;
   //! \brief Parses material properties from an XML-element.
@@ -177,6 +214,12 @@ public:
   //! element quantities are assembled into their system level equivalents
   virtual bool finalizeElement(LocalIntegral&, const TimeDomain&, size_t);
 
+  //! \brief Finalizes the element quantities after boundary integration
+  //! \details This method is invoked once for each element, after the numerical
+  //! integration loop over boundary points is finished and before the resulting
+  //! element quantities are assembled into their system level equivalents
+  virtual bool finalizeElementBou(LocalIntegral&, const FiniteElement&, const TimeDomain&);
+
   //! \brief Returns whether a mixed formulation is used
   virtual bool mixedFormulation() const { return true; }
 
@@ -205,9 +248,8 @@ private:
                      const FiniteElement& fe, const Vec3& X,
                      const Vector& disp) const;
 
-  //! \brief Initializes the local integral
-  void initLocalIntegral(ElmMats *result, size_t ndof_displ,
-                         size_t ndof_press, bool neumann) const;
+  //! \brief Computes the n-dimensional mass matrix for a quadrature point.
+  bool evalMassMatrix(Matrix& mx, const Vector& N, double scl) const;
 
   //! \brief Computes the coupling matrix for a quadrature point.
   bool evalCouplingMatrix(Matrix& mx, const Matrix& B, const Vector& N,
