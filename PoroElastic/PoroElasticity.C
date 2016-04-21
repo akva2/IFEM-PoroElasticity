@@ -102,11 +102,24 @@ bool PoroElasticity::initElement (const std::vector<int>& MNPC,
   std::vector<int> MNPCu(MNPC.begin(),pStart);
   std::vector<int> MNPCp(pStart,MNPC.end());
 
+  if (elmInt.vec.size() < NSOL)
+    elmInt.vec.resize(NSOL);
+
   // Extract the element level solution vectors
-  if (elmInt.vec.size() < NSOL) elmInt.vec.resize(NSOL);
-  int ierr = utl::gather(MNPCu, nsd, primsol.front(), elmInt.vec[U])
-           + utl::gather(MNPCp, 0,1, primsol.front(), elmInt.vec[P],
-                         nsd*basis_sizes.front(), basis_sizes.front());
+  int ierr = utl::gather(MNPCu, nsd, primsol.front(), elmInt.vec[Vu]);
+  ierr += utl::gather(MNPCp, 0, 1, primsol.front(), elmInt.vec[Vp],
+                      nsd*basis_sizes.front(), basis_sizes.front());
+
+  if (m_mode == SIM::DYNAMIC) {
+    // Extract the element level velocity vectors
+    ierr += utl::gather(MNPCu, nsd, primsol[1], elmInt.vec[Vuvel]);
+    ierr += utl::gather(MNPCp, 0, 1, primsol[1], elmInt.vec[Vpvel],
+                        nsd*basis_sizes.front(), basis_sizes.front());
+
+    // Extract the element level acceleration vector for displacement
+    ierr += utl::gather(MNPCu, nsd, primsol[2], elmInt.vec[Vuacc]);
+  }
+
   if (ierr == 0) return true;
 
   std::cerr <<" *** PoroElasticity::initElement: Detected "<< ierr/2
@@ -122,16 +135,29 @@ bool PoroElasticity::initElement (const std::vector<int>& MNPC,
   if (primsol.empty() || primsol.front().empty())
     return true;
 
+  if (elmInt.vec.size() < NSOL)
+    elmInt.vec.resize(NSOL);
+
+  Matrix temp(nsd+1, MNPC.size());
+
   // Extract the element level solution vectors
-  if (elmInt.vec.size() < NSOL) elmInt.vec.resize(NSOL);
-  Matrix temp(nsd+1,MNPC.size());
   int ierr = utl::gather(MNPC, nsd+1, primsol.front(), temp);
-  if (ierr == 0)
-  {
-    elmInt.vec[P] = temp.getRow(nsd+1);
-    elmInt.vec[U] = temp.expandRows(-1);
-    return true;
+  elmInt.vec[Vp] = temp.getRow(nsd+1);
+  elmInt.vec[Vu] = temp.expandRows(-1);
+
+  if (m_mode == SIM::DYNAMIC) {
+    temp.resize(nsd+1, MNPC.size());
+    ierr += utl::gather(MNPC, nsd+1, primsol[1], temp);
+    elmInt.vec[Vpvel] = temp.getRow(nsd+1);
+    elmInt.vec[Vuvel] = temp.expandRows(-1);
+
+    temp.resize(nsd+1, MNPC.size());
+    ierr += utl::gather(MNPC, nsd+1, primsol[2], temp);
+    elmInt.vec[Vuacc] = temp.expandRows(-1);
   }
+
+  if (ierr == 0)
+    return true;
 
   std::cerr <<" *** PoroElasticity::initElement: Detected "<< ierr
             <<" node numbers out of range."<< std::endl;
@@ -286,47 +312,7 @@ bool PoroElasticity::evalBouMx (LocalIntegral& elmInt,
 bool PoroElasticity::finalizeElement (LocalIntegral& elmInt, const TimeDomain& time, size_t)
 {
   Mats& elMat = static_cast<Mats&>(elmInt);
-
-  // Consturct the C-matrix (needed by both)
-  elMat.add_pu(up, sys_C);
-  elMat.add_pp(pp_S, sys_C);
-
-  if (m_mode != SIM::DYNAMIC) {
-    // Construct the system matrix
-    elMat.add_uu(uu_K, sys);
-    elMat.add_up(up, sys, -1.0);
-    elMat.add_pu(up, sys);
-    elMat.add_pp(pp_S, sys);
-    elMat.add_pp(pp_P, sys, time.dt);
-
-    // Contribution to RHS from previous timestep
-    elMat.form_vector(elmInt.vec[U], elmInt.vec[P], Fprev);
-    elMat.b[Fprev] = elMat.A[sys_C] * elMat.b[Fprev];
-
-    // Contribution to RHS from current timestep
-    elMat.b[Fp] *= time.dt;
-    elMat.form_vector(elMat.b[Fu], elMat.b[Fp], Fsys);
-
-    elMat.b[Fsys] += elMat.b[Fprev];
-  } else {
-    // Construct the M-matrix
-    elMat.add_uu(uu_M, sys_M, -1.0);
-
-    // Construct the C-matrix
-    elMat.add_pu(up, sys_C);
-    elMat.add_pp(pp_S, sys_C);
-
-    // Construct the K-matrix
-    elMat.add_uu(uu_K, sys_K);
-    elMat.add_up(up, sys_K, -1.0);
-    elMat.add_pp(pp_P, sys_K);
-
-    // In case of dynamic mode, we add the zero-order contribution
-    // to the RHS already here, due to (possibly) nonlinear terms
-    elMat.form_vector(elMat.b[Fu], elMat.b[Fp], Fsys);
-    elMat.form_vector(elmInt.vec[U], elmInt.vec[P], Fprev);
-    elMat.b[Fsys] -= elMat.A[sys_K] * elMat.b[Fprev];
-  }
+  elMat.setStepSize(time.dt);
 
   return true;
 }
@@ -336,10 +322,7 @@ bool PoroElasticity::finalizeElementBou (LocalIntegral& elmInt, const FiniteElem
                                          const TimeDomain& time)
 {
   Mats& elMat = static_cast<Mats&>(elmInt);
-
-  if (m_mode != SIM::DYNAMIC)
-    elMat.b[Fp] *= time.dt;
-  elMat.form_vector(elMat.b[Fu], elMat.b[Fp], Fsys);
+  elMat.setStepSize(time.dt);
 
   return true;
 }

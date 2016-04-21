@@ -21,48 +21,44 @@
 //! \brief Enum for element level solution vectors
 enum SolutionVectors
 {
-  U = 0,                        // Displacement
-  P = 1,                        // Pore pressure
-  NSOL = 2
+  Vu = 0,                        // Displacement
+  Vp = 1,                        // Pore pressure
+
+  // Newmark integration stuff
+  Vuvel = 2,                    // Displacement velocity
+  Vpvel = 3,                    // Pressure velocity
+  Vuacc = 4,                    // Displacement acceleration
+
+  NSOL = 5
 };
 
 
 //! \brief Enum for element level right-hand-side vectors
 enum ResidualVectors
 {
-  // System vectors, "global" size
   Fsys = 0,                     // Final RHS vector
-  Fprev = 1,                    // RHS contribution from previous timestep
 
   // Sub-vectors, sized according to the bases in question
-  Fu = 2,                       // Traction and body forces
-  Fp = 3,                       // Flux and body forces
+  Fu = 1,                       // Traction and body forces
+  Fp = 2,                       // Flux and body forces
 
-  // Reserved for Newmark integration
-  Fv = 4,                       // Velocity
-  Fa = 5,                       // Acceleration
-
-  NVEC = 6
+  NVEC = 3
 };
 
 
 //! \brief Enum for element level left-hand-side matrices
 enum TangentMatrices
 {
-  // System matrices, "global" size (note: order is fixed according to Newmark API)
   sys = 0,                      // Final Newton matrix
-  sys_M = 1,                    // Mass (acceleration term in Newmark)
-  sys_C = 2,                    // Geometric stiffness (velocity term in Newmark)
-  sys_K = 3,                    // Material stiffness (zero-order term in Newmark)
 
   // Sub-matrices, sized according to the bases in question
-  uu_K = 4,                     // Stiffness matrix
-  uu_M = 5,                     // Mass matrix
-  up = 6,                       // Coupling matrix
-  pp_S = 7,                     // Compressibility matrix
-  pp_P = 8,                     // Permeability matrix
+  uu_K = 1,                     // Stiffness matrix
+  uu_M = 2,                     // Mass matrix
+  up = 3,                       // Coupling matrix
+  pp_S = 4,                     // Compressibility matrix
+  pp_P = 5,                     // Permeability matrix
 
-  NMAT = 9
+  NMAT = 6
 };
 
 
@@ -85,22 +81,26 @@ class PoroElasticity : public Elasticity
     Mats(size_t ndof_displ, size_t ndof_press, bool neumann);
     //! \brief Empty destructor
     ~Mats() {}
+    //! \brief Updates the time step size
+    //! \param[in] dt New time step size
+    void setStepSize(double dt) { h = dt; }
     //! \brief Returns the element level Newton matrix
     virtual const Matrix& getNewtonMatrix() const;
     //! \brief Returns the element level RHS vector
     virtual const Vector& getRHSVector() const;
     //! \brief Adds in a UU-matrix to a system matrix
-    virtual void add_uu(size_t source, size_t target, double scale = 1.0) = 0;
+    virtual void add_uu(const Matrix& source, Matrix& target, double scale = 1.0) const = 0;
     //! \brief Adds in a UP-matrix to a system matrix
-    virtual void add_up(size_t source, size_t target, double scale = 1.0) = 0;
+    virtual void add_up(const Matrix& source, Matrix& target, double scale = 1.0) const = 0;
     //! \brief Adds in the transpose of a UP-matrix to a system matrix
-    virtual void add_pu(size_t source, size_t target, double scale = 1.0) = 0;
+    virtual void add_pu(const Matrix& source, Matrix& target, double scale = 1.0) const = 0;
     //! \brief Adds in a PP-matrix to a system matrix
-    virtual void add_pp(size_t source, size_t target, double scale = 1.0) = 0;
+    virtual void add_pp(const Matrix& source, Matrix& target, double scale = 1.0) const = 0;
     //! \brief Forms a system vector out of two sub-vectors
-    virtual void form_vector(const Vector &u, const Vector &p, size_t target) = 0;
+    virtual void form_vector(const Vector &u, const Vector &p, Vector& target) const = 0;
   protected:
     size_t ndof_displ, ndof_press, nsd;
+    double h;
   };
 
   /*!
@@ -115,15 +115,15 @@ class PoroElasticity : public Elasticity
     //! \brief Empty destructor
     virtual ~MixedElmMats() {}
     //! \brief Adds in a UU-matrix to a system matrix
-    virtual void add_uu(size_t source, size_t target, double scale = 1.0);
+    virtual void add_uu(const Matrix& source, Matrix& target, double scale = 1.0) const;
     //! \brief Adds in a UP-matrix to a system matrix
-    virtual void add_up(size_t source, size_t target, double scale = 1.0);
+    virtual void add_up(const Matrix& source, Matrix& target, double scale = 1.0) const;
     //! \brief Adds in the transpose of a UP-matrix to a system matrix
-    virtual void add_pu(size_t source, size_t target, double scale = 1.0);
+    virtual void add_pu(const Matrix& source, Matrix& target, double scale = 1.0) const;
     //! \brief Adds in a PP-matrix to a system matrix
-    virtual void add_pp(size_t source, size_t target, double scale = 1.0);
+    virtual void add_pp(const Matrix& source, Matrix& target, double scale = 1.0) const;
     //! \brief Forms a system vector out of two sub-vectors
-    virtual void form_vector(const Vector &u, const Vector &p, size_t target);
+    virtual void form_vector(const Vector &u, const Vector &p, Vector& target) const;
   };
 
   /*!
@@ -138,50 +138,66 @@ class PoroElasticity : public Elasticity
     //! \brief Empty destructor
     virtual ~NonMixedElmMats() {}
     //! \brief Adds in a UU-matrix to a system matrix
-    virtual void add_uu(size_t source, size_t target, double scale = 1.0);
+    virtual void add_uu(const Matrix& source, Matrix& target, double scale = 1.0) const;
     //! \brief Adds in a UP-matrix to a system matrix
-    virtual void add_up(size_t source, size_t target, double scale = 1.0);
+    virtual void add_up(const Matrix& source, Matrix& target, double scale = 1.0) const;
     //! \brief Adds in the transpose of a UP-matrix to a system matrix
-    virtual void add_pu(size_t source, size_t target, double scale = 1.0);
+    virtual void add_pu(const Matrix& source, Matrix& target, double scale = 1.0) const;
     //! \brief Adds in a PP-matrix to a system matrix
-    virtual void add_pp(size_t source, size_t target, double scale = 1.0);
+    virtual void add_pp(const Matrix& source, Matrix& target, double scale = 1.0) const;
     //! \brief Forms a system vector out of two sub-vectors
-    virtual void form_vector(const Vector &u, const Vector &p, size_t target);
+    virtual void form_vector(const Vector &u, const Vector &p, Vector& target) const;
   };
 
   /*!
    * \brief Newmark element matrices for PoroElasticity
    */
-  template<class M> class NewmarkMats : public M
+  template<class P> class NewmarkMats : public P
   {
   public:
     //! \brief Default constructor
     NewmarkMats(size_t ndof_displ, size_t ndof_press, bool neumann, double b, double c)
-      : M(ndof_displ, ndof_press, neumann), beta(b), gamma(c) {}
+      : P(ndof_displ, ndof_press, neumann), beta(b), gamma(c) {}
     //! \brief Empty destructor
     ~NewmarkMats() {}
-    //! \brief Updates the time step size
-    //! \param[in] dt New time step size
-    void setStepSize(double dt, int) { h = dt; }
     //! \brief Returns the element level Newton matrix
     virtual const Matrix& getNewtonMatrix() const
     {
-      Matrix& N = const_cast<Matrix&>(M::A.front());
-      N = M::A[sys_M];
-      N.add(M::A[sys_C], gamma * h);
-      N.add(M::A[sys_K], beta * h * h);
-      return M::A.front();
+      Matrix& res = const_cast<Matrix&>(P::A.front()); res.fill(0.0);
+      this->add_uu(P::A[uu_M], res, -1.0);
+      this->add_uu(P::A[uu_K], res, beta * P::h * P::h);
+      this->add_up(P::A[up], res, -beta * P::h * P::h);
+      this->add_pu(P::A[up], res, gamma * P::h);
+      this->add_pp(P::A[pp_S], res, gamma * P::h);
+      this->add_pp(P::A[pp_P], res, beta * P::h * P::h);
+      return P::A.front();
     }
     //! \brief Returns the element level RHS vector
     virtual const Vector& getRHSVector() const
     {
-      Vector& F = const_cast<Vector&>(M::b.front());
-      F.add(M::A[sys_M] * M::b[Fa], -1.0);
-      F.add(M::A[sys_C] * M::b[Fv], -1.0);
-      return M::b.front();
+      Vector tu(P::b[Fu].size()), tp(P::b[Fp].size());
+      tu = P::b[Fu]; tp = P::b[Fp];
+
+      if (P::vec.size() > 1) {
+        tu -= P::A[uu_K] * P::vec[Vu];
+        tu += P::A[up] * P::vec[Vp];
+        tp -= P::A[pp_P] * P::vec[Vp];
+      }
+
+      tu += P::A[uu_M] * P::vec[Vuacc];
+      tp -= P::A[pp_S] * P::vec[Vpvel];
+
+      // Can't do transposed MxV and subtract in one simple operation...
+      Vector temp(tp.size());
+      P::A[up].multiply(P::b[Vuvel], temp, true, false);
+      tp -= temp;
+
+      Vector& res = const_cast<Vector&>(P::b.front());
+      this->form_vector(tu, tp, res);
+      return P::b.front();
     }
   protected:
-    double beta, gamma, h;
+    double beta, gamma;
   };
 
 
