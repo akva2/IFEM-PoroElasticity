@@ -14,30 +14,28 @@
 #ifndef _SIM_PORO_ELASTICITY_H_
 #define _SIM_PORO_ELASTICITY_H_
 
-#include "SIMElasticity.h"
+#include "SIMElasticityWrap.h"
 #include "PoroElasticity.h"
-#include "DataExporter.h"
 
 
 /*!
   \brief Driver class for poroelastic simulators.
 */
 
-template<class Dim> class SIMPoroElasticity : public SIMElasticity<Dim>
+template<class Dim> class SIMPoroElasticity : public SIMElasticityWrap<Dim>
 {
 public:
   //! \brief Default constructor.
   SIMPoroElasticity()
   {
-    Dim::msgLevel = 1;
-    Dim::myHeading = "Elasticity solver";
+    Dim::myHeading = "Poroelasticity solver";
+    SIMElasticity<Dim>::myContext = "poroelasticity";
   }
 
   //! \brief This constructor sets the number of solution fields for each basis.
   SIMPoroElasticity(const std::vector<unsigned char>& fields)
   {
     Dim::nf = fields;
-    Dim::msgLevel = 1;
     Dim::myHeading = "Poroelasticity solver";
     SIMElasticity<Dim>::myContext = "poroelasticity";
   }
@@ -47,16 +45,6 @@ public:
 
   //! \brief Returns the name of this simulator (for use in the HDF5 export).
   virtual std::string getName() const { return "PoroElasticity"; }
-
-  //! \brief Registers solution fields for data output.
-  void registerFields(DataExporter& exporter)
-  {
-    int flag = DataExporter::PRIMARY;
-    if (!Dim::opt.pSolOnly)
-      flag |= DataExporter::SECONDARY;
-    exporter.registerField("u","solution",DataExporter::SIM,flag);
-    exporter.setFieldValue("u",this,&this->getSolution());
-  }
 
   //! \brief Initializes the solution vectors.
   virtual bool init(const TimeStep&)
@@ -69,29 +57,6 @@ public:
 
     this->setQuadratureRule(Dim::opt.nGauss[0],true);
     return ok;
-  }
-
-  //! \brief Opens a new VTF-file and writes the model geometry to it.
-  //! \param[in] fileName File name used to construct the VTF-file name from
-  //! \param geoBlk Running geometry block counter
-  bool saveModel(char* fileName, int& geoBlk, int&)
-  {
-    return Dim::opt.format < 0 ? true : this->writeGlvG(geoBlk,fileName);
-  }
-
-  //! \brief Saves the converged results of a given time step to VTF file.
-  //! \param[in] tp Time stepping parameters
-  //! \param nBlock Running result block counter
-  virtual bool saveStep(const TimeStep& tp, int& nBlock)
-  {
-    if (tp.step%Dim::opt.saveInc > 0 || Dim::opt.format < 0)
-      return true;
-
-    int iDump = 1 + tp.step/Dim::opt.saveInc;
-    if (!this->writeGlvS(solution.front(),iDump,nBlock,tp.time.t,"vector",89))
-      return false;
-
-    return this->writeGlvStep(iDump,tp.time.t);
   }
 
   //! \brief Advances the time step one step forward.
@@ -126,12 +91,6 @@ public:
   virtual void printSolutionSummary(const Vector& solution, int = 0,
                                     const char* = nullptr, std::streamsize = 0)
   {
-    if (SIMElasticity<Dim>::myContext != "poroelasticity")
-    {
-      this->Dim::printSolutionSummary(solution);
-      return;
-    }
-
     const size_t nsd = this->getNoSpaceDim();
     size_t iMax[nsd+1];
     double dMax[nsd+1];
