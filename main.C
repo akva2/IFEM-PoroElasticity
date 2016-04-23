@@ -14,8 +14,9 @@
 #include "IFEM.h"
 #include "SIM2D.h"
 #include "SIM3D.h"
-#include "SIMPoroElasticity.h"
+#include "SIMDynPoroElasticity.h"
 #include "SIMSolver.h"
+#include "GenAlphaSIM.h"
 #include "InitialConditionHandler.h"
 #include "ASMmxBase.h"
 #include "AppCommon.h"
@@ -27,7 +28,7 @@
   \param[in] infile The input file to parse
 */
 
-template<class Dim> int runSimulator (char* infile)
+template<class Dim, class Sim> int runSimulator (char* infile)
 {
   utl::profiler->start("Model input");
   IFEM::cout <<"\n\n0. Parsing input file(s)."
@@ -39,14 +40,14 @@ template<class Dim> int runSimulator (char* infile)
     fields = { Dim::dimension, 1 };
    else
     fields = { Dim::dimension+1 };
-  SIMPoroElasticity<Dim> model(fields);
+  Sim model(fields);
   if (!model.read(infile))
     return 1;
   else
     model.opt.print(IFEM::cout) << std::endl;
 
   // Establish the simulation driver
-  SIMSolver< SIMPoroElasticity<Dim> > solver(model);
+  SIMSolver<Sim> solver(model);
   if (!solver.read(infile))
     return 1;
 
@@ -79,6 +80,24 @@ template<class Dim> int runSimulator (char* infile)
 
 
 /*!
+  \brief Creates the dynamic poroelastic simulator and launches the simulation.
+  \param[in] infile The input file to parse
+  \param[in] integrator The time integrator to use (0=linear quasi-static,
+             1=linear Newmark, 2=Generalized alpha)
+*/
+
+template<class Dim> int runSimulator (char* infile, char integrator)
+{
+  if (integrator == 2)
+    return runSimulator<Dim, SIMDynPoroElasticity<Dim,GenAlphaSIM> >(infile);
+  else if (integrator > 0)
+    return runSimulator<Dim, SIMDynPoroElasticity<Dim> >(infile);
+  else // quasi-static
+    return runSimulator<Dim, SIMPoroElasticity<Dim> >(infile);
+}
+
+
+/*!
   \brief Main program for NURBS-based poroelasticity solver.
 */
 
@@ -89,6 +108,7 @@ int main (int argc, char ** argv)
 
   int i;
   char* infile = 0;
+  char integrator = 0;
   bool twoD = false;
   ASMmxBase::Type = ASMmxBase::NONE;
 
@@ -101,6 +121,10 @@ int main (int argc, char ** argv)
       twoD = SIMElasticity<SIM2D>::planeStrain = true;
     else if (!strcmp(argv[i],"-mixed"))
       ASMmxBase::Type = ASMmxBase::FULL_CONT_RAISE_BASIS1;
+    else if (!strcmp(argv[i],"-dyn2"))
+      integrator = 2;
+    else if (!strncmp(argv[i],"-dyn",4))
+      integrator = 1;
     else if (!infile)
       infile = argv[i];
     else
@@ -109,8 +133,8 @@ int main (int argc, char ** argv)
   if (!infile)
   {
     std::cout <<"Usage: "<< argv[0]
-              <<" <inputfile> [-dense|-spr|-superlu[<nt>]|-samg|-petsc]\n"
-              <<"       [-lag|-spec|-LR] [-2D] [-mixed] [-nGauss <n>]\n"
+              <<" <inputfile> [-dense|-spr|-superlu[<nt>]|-samg|-petsc]\n      "
+              <<" [-lag|-spec|-LR] [-2D] [-nGauss <n>] [-mixed] [-dyn[1|2]]\n"
               <<"       [-vtf <format> [-nviz <nviz>] [-nu <nu> [-nv <nv>]"
               <<" [-nw <nw>]] [-hdf5]\n";
     return 0;
@@ -125,7 +149,7 @@ int main (int argc, char ** argv)
   IFEM::cout << std::endl;
 
   if (twoD)
-    return runSimulator<SIM2D>(infile);
+    return runSimulator<SIM2D>(infile,integrator);
   else
-    return runSimulator<SIM3D>(infile);
+    return runSimulator<SIM3D>(infile,integrator);
 }
