@@ -15,7 +15,7 @@ if(NOT IFEM_CONFIGURED)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${IFEM_CXX_FLAGS}")
 endif()
 
-include_directories(${IFEM_INCLUDES} ../Common
+include_directories(${IFEM_INCLUDES} ../Common ${PROJECT_SOURCE_DIR}
                     ${PROJECT_SOURCE_DIR}/PoroElastic)
 
 # Generate doxy in build tree
