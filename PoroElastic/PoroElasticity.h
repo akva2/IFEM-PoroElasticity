@@ -156,10 +156,10 @@ class PoroElasticity : public Elasticity
   {
   public:
     //! \brief Default constructor
-    NewmarkMats(size_t ndof_displ, size_t ndof_press, bool neumann, double b, double c)
-      : P(ndof_displ, ndof_press, neumann), beta(b), gamma(c) {}
+    NewmarkMats(size_t ndof_d, size_t ndof_p, bool neumann, double b, double c)
+      : P(ndof_d, ndof_p, neumann), beta(b), gamma(c) {}
     //! \brief Empty destructor
-    ~NewmarkMats() {}
+    virtual ~NewmarkMats() {}
     //! \brief Returns the element level Newton matrix
     virtual const Matrix& getNewtonMatrix() const
     {
@@ -175,25 +175,20 @@ class PoroElasticity : public Elasticity
     //! \brief Returns the element level RHS vector
     virtual const Vector& getRHSVector() const
     {
-      Vector tu(P::b[Fu].size()), tp(P::b[Fp].size());
-      tu = P::b[Fu]; tp = P::b[Fp];
-
-      if (P::vec.size() > 1) {
-        tu -= P::A[uu_K] * P::vec[Vu];
-        tu += P::A[up] * P::vec[Vp];
-        tp -= P::A[pp_P] * P::vec[Vp];
-      }
-
-      tu += P::A[uu_M] * P::vec[Vuacc];
-      tp -= P::A[pp_S] * P::vec[Vpvel];
-
-      // Can't do transposed MxV and subtract in one simple operation...
-      Vector temp(tp.size());
-      P::A[up].multiply(P::b[Vuvel], temp, true, false);
-      tp -= temp;
-
-      Vector& res = const_cast<Vector&>(P::b.front());
-      this->form_vector(tu, tp, res);
+      Vector tu(P::b[Fu]), tp(P::b[Fp]);
+      if (P::A.size() > uu_K && P::vec.size() > Vu)
+        P::A[uu_K].multiply(P::vec[Vu],    tu, false,-1);
+      if (P::A.size() > up   && P::vec.size() > Vp)
+        P::A[up]  .multiply(P::vec[Vp],    tu, false, 1);
+      if (P::A.size() > pp_P && P::vec.size() > Vp)
+        P::A[pp_P].multiply(P::vec[Vp],    tp, false,-1);
+      if (P::A.size() > uu_M && P::vec.size() > Vuacc)
+        P::A[uu_M].multiply(P::vec[Vuacc], tu, false, 1);
+      if (P::A.size() > pp_S && P::vec.size() > Vpvel)
+        P::A[pp_S].multiply(P::vec[Vpvel], tp, false,-1);
+      if (P::A.size() > up   && P::vec.size() > Vuvel)
+        P::A[up]  .multiply(P::vec[Vuvel], tp, true, -1);
+      this->form_vector(tu, tp, const_cast<Vector&>(P::b.front()));
       return P::b.front();
     }
   protected:
@@ -347,9 +342,6 @@ private:
   bool evalSolCommon(Vector& s,
                      const FiniteElement& fe, const Vec3& X,
                      const Vector& disp) const;
-
-  //! \brief Computes the n-dimensional mass matrix for a quadrature point.
-  bool evalMassMatrix(Matrix& mx, const Vector& N, double scl) const;
 
   //! \brief Computes the coupling matrix for a quadrature point.
   bool evalCouplingMatrix(Matrix& mx, const Matrix& B, const Vector& N,

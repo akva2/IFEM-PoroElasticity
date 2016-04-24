@@ -17,7 +17,6 @@
 #include "TimeDomain.h"
 #include "Utilities.h"
 #include "Tensor.h"
-#include "Vec3Oper.h"
 #include "IFEM.h"
 #include "tinyxml.h"
 
@@ -68,24 +67,22 @@ void PoroElasticity::printLog () const
 LocalIntegral* PoroElasticity::getLocalIntegral (const std::vector<size_t>& nen,
                                                  size_t, bool neumann) const
 {
-  ElmMats* result;
   if (m_mode == SIM::DYNAMIC)
-    result = new NewmarkMats<MixedElmMats>(nsd * nen[0], nen[1], neumann, 0.25, 0.5);
+    return new NewmarkMats<MixedElmMats>(nsd * nen[0], nen[1], neumann,
+                                         intPrm[2], intPrm[3]);
   else
-    result = new MixedElmMats(nsd * nen[0], nen[1], neumann);
-  return result;
+    return new MixedElmMats(nsd * nen[0], nen[1], neumann);
 }
 
 
 LocalIntegral* PoroElasticity::getLocalIntegral (size_t nen,
                                                  size_t, bool neumann) const
 {
-  ElmMats* result;
   if (m_mode == SIM::DYNAMIC)
-    result = new NewmarkMats<NonMixedElmMats>(nsd * nen, nen, neumann, 0.25, 0.5);
+    return new NewmarkMats<NonMixedElmMats>(nsd * nen, nen, neumann,
+                                            intPrm[2], intPrm[3]);
   else
-    result = new NonMixedElmMats(nsd * nen, nen, neumann);
-  return result;
+    return new NonMixedElmMats(nsd * nen, nen, neumann);
 }
 
 
@@ -115,14 +112,14 @@ bool PoroElasticity::initElement (const std::vector<int>& MNPC,
     ierr += utl::gather(MNPCu, nsd, primsol[1], elmInt.vec[Vuvel]);
     ierr += utl::gather(MNPCp, 0, 1, primsol[1], elmInt.vec[Vpvel],
                         nsd*basis_sizes.front(), basis_sizes.front());
-
     // Extract the element level acceleration vector for displacement
     ierr += utl::gather(MNPCu, nsd, primsol[2], elmInt.vec[Vuacc]);
   }
 
-  if (ierr == 0) return true;
+  if (ierr == 0)
+    return true;
 
-  std::cerr <<" *** PoroElasticity::initElement: Detected "<< ierr/2
+  std::cerr <<" *** PoroElasticity::initElement: Detected "<< ierr
             <<" node numbers out of range."<< std::endl;
 
   return false;
@@ -146,11 +143,12 @@ bool PoroElasticity::initElement (const std::vector<int>& MNPC,
   elmInt.vec[Vu] = temp.expandRows(-1);
 
   if (m_mode == SIM::DYNAMIC) {
+    // Extract the element level velocity vectors
     temp.resize(nsd+1, MNPC.size());
     ierr += utl::gather(MNPC, nsd+1, primsol[1], temp);
     elmInt.vec[Vpvel] = temp.getRow(nsd+1);
     elmInt.vec[Vuvel] = temp.expandRows(-1);
-
+    // Extract the element level acceleration vector for displacement
     temp.resize(nsd+1, MNPC.size());
     ierr += utl::gather(MNPC, nsd+1, primsol[2], temp);
     elmInt.vec[Vuacc] = temp.expandRows(-1);
@@ -186,21 +184,6 @@ bool PoroElasticity::evalElasticityMatrices (ElmMats& elMat, const Matrix& B,
   Matrix CB;
   CB.multiply(C,B).multiply(fe.detJxW); // CB = dSdE*B*|J|*w
   elMat.A[uu_K].multiply(B,CB,true,false,true); // EK += B^T * CB
-
-  return true;
-}
-
-
-bool PoroElasticity::evalMassMatrix (Matrix& mx, const Vector& N, double scl) const
-{
-  Matrix temp(N.size(), N.size());
-  temp.outer_product(N, N);
-  temp *= scl;
-
-  for (size_t i = 0; i < N.size(); i++)
-    for (size_t j = 0; j < N.size(); j++)
-      for (size_t k = 1; k <= nsd; k++)
-        mx(i*nsd+k, j*nsd+k) = temp(i+1, j+1);
 
   return true;
 }
@@ -263,7 +246,6 @@ bool PoroElasticity::evalInt (LocalIntegral& elmInt,
 
   Vec3 permeability = pmat->getPermeability(X);
 
-  double rhot = pmat->getMassDensity(X);
   double rhog = pmat->getFluidDensity(X) * gacc;
   double scl = sc;
   if (scl == 0.0)
@@ -279,9 +261,8 @@ bool PoroElasticity::evalInt (LocalIntegral& elmInt,
   // Inverse of the compressibility modulus
   double Minv = ((alpha - poro)/Ks) + (poro/Kw);
 
-  if (m_mode == SIM::DYNAMIC && !this->evalMassMatrix(elMat.A[uu_M], fe.basis(1),
-                                                      rhot*fe.detJxW))
-    return false;
+  if (m_mode == SIM::DYNAMIC)
+    this->formMassMatrix(elMat.A[uu_M], fe.basis(1), X, fe.detJxW);
 
   if (!this->evalElasticityMatrices(elMat, Bmat, fe, X))
     return false;
@@ -309,21 +290,19 @@ bool PoroElasticity::evalBouMx (LocalIntegral& elmInt,
 }
 
 
-bool PoroElasticity::finalizeElement (LocalIntegral& elmInt, const TimeDomain& time, size_t)
+bool PoroElasticity::finalizeElement (LocalIntegral& elmInt,
+                                      const TimeDomain& time, size_t)
 {
-  Mats& elMat = static_cast<Mats&>(elmInt);
-  elMat.setStepSize(time.dt);
-
+  static_cast<Mats&>(elmInt).setStepSize(time.dt);
   return true;
 }
 
 
-bool PoroElasticity::finalizeElementBou (LocalIntegral& elmInt, const FiniteElement&,
+bool PoroElasticity::finalizeElementBou (LocalIntegral& elmInt,
+                                         const FiniteElement&,
                                          const TimeDomain& time)
 {
-  Mats& elMat = static_cast<Mats&>(elmInt);
-  elMat.setStepSize(time.dt);
-
+  static_cast<Mats&>(elmInt).setStepSize(time.dt);
   return true;
 }
 
