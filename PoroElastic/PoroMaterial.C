@@ -46,7 +46,7 @@ VecFunc* PoroMaterial::FuncConstPair<VecFunc>::parse(const char* val,
 
 
 /*!
-  \brief Template function to parse a property value from and XML-element.
+  \brief Template function to parse a property value from an XML-element.
 */
 
 template<class T>
