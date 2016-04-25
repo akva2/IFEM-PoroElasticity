@@ -11,7 +11,6 @@
 //!
 //==============================================================================
 
-
 #include "PoroElasticity.h"
 #include "Utilities.h"
 
@@ -43,28 +42,43 @@ PoroElasticity::Mats::Mats(size_t ndof_displ, size_t ndof_press, bool neumann)
 
 const Matrix& PoroElasticity::Mats::getNewtonMatrix() const
 {
-  Matrix& res = const_cast<Matrix&>(A[sys]); res.fill(0.0);
+  Matrix& res = const_cast<Matrix&>(A[sys]);
   this->add_uu(A[uu_K], res);
   this->add_up(A[up], res, -1.0);
   this->add_pu(A[up], res);
   this->add_pp(A[pp_S], res);
   this->add_pp(A[pp_P], res, h);
+#if INT_DEBUG > 2
+  std::cout <<"\nPoroElasticity::Mats::getNewtonMatrix:"
+            <<"\nElement stiffness matrix, K_uu"<< A[uu_K]
+            <<"\nElement coupling matrix, K_up"<< A[up]
+            <<"\nElement compressibility matrix, S_pp"<< A[pp_S]
+            <<"\nElement permeability matrix, P_pp"<< A[pp_P]
+            <<"\nElement coefficient matrix" << A[sys];
+#endif
   return A[sys];
 }
 
 
 const Vector& PoroElasticity::Mats::getRHSVector() const
 {
-  Vector temp(b[Fp].size());
-  temp.add(b[Fp], h);
-  if (vec.size() > 1) {
-    A[up].multiply(vec[Vu], temp, true, true);
-    A[pp_S].multiply(vec[Vp], temp, false, true);
-  }
+#if INT_DEBUG > 2
+  std::cout <<"\nPoroElasticity::Mats::getRHSVector:"<< std::endl;
+  if (vec.size() > Vu) std::cout <<"Element displacement, Vu"<< vec[Vu];
+  if (vec.size() > Vp) std::cout <<"Element pressure, Vp"<< vec[Vp];
+  std::cout <<"S_ext-S_int"<< b[Fu] <<"S_p"<< b[Fp];
+#endif
 
-  Vector& res = const_cast<Vector&>(b[Fsys]); res.fill(0.0);
-  this->form_vector(b[Fu], temp, res);
+  Vector temp(b[Fp]); temp *= h;                  // temp = Fp*h
+  if (A.size() > up   && vec.size() > Vu)
+    A[up]  .multiply(vec[Vu], temp, true, true);  // temp += A_up^t * u
+  if (A.size() > pp_S && vec.size() > Vp)
+    A[pp_S].multiply(vec[Vp], temp, false, true); // temp += S_pp * p
 
+  this->form_vector(b[Fu], temp, const_cast<Vector&>(b[Fsys]));
+#if INT_DEBUG > 2
+  std::cout <<"\nElement right-hand-side vector"<< b[Fsys];
+#endif
   return b[Fsys];
 }
 
