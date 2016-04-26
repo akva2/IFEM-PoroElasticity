@@ -301,20 +301,15 @@ public:
                        const std::vector<int>& MNPC,
                        const std::vector<size_t>& elem_sizes) const;
 
-  //! \brief Finalizes the element quantities after the numerical integration
-  //! \details This method is invoked once for each element, after the numerical
-  //! integration loop over interior points is finished and before the resulting
-  //! element quantities are assembled into their system level equivalents
+  //! \brief Finalizes the element quantities after the numerical integration.
   virtual bool finalizeElement(LocalIntegral&, const TimeDomain&, size_t);
 
-  //! \brief Finalizes the element quantities after boundary integration
-  //! \details This method is invoked once for each element, after the numerical
-  //! integration loop over boundary points is finished and before the resulting
-  //! element quantities are assembled into their system level equivalents
-  virtual bool finalizeElementBou(LocalIntegral&, const FiniteElement&, const TimeDomain&);
+  //! \brief Finalizes the element quantities after boundary integration.
+  virtual bool finalizeElementBou(LocalIntegral&, const FiniteElement&,
+                                  const TimeDomain&);
 
-  //! \brief Returns whether a mixed formulation is used
-  virtual bool mixedFormulation() const { return true; }
+  //! \brief Returns a pointer to an Integrand for solution norm evaluation.
+  virtual NormBase* getNormIntegrand(AnaSol*) const;
 
   //! \brief Returns the number of primary/secondary solution field components
   //! \param[in] fld Which field set to consider (1=primary,2=secondary)
