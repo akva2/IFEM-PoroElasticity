@@ -16,6 +16,7 @@
 
 #include "SIMElasticityWrap.h"
 #include "PoroElasticity.h"
+#include "ASMmxBase.h"
 
 
 /*!
@@ -25,17 +26,14 @@
 template<class Dim> class SIMPoroElasticity : public SIMElasticityWrap<Dim>
 {
 public:
-  //! \brief Default constructor.
+  //! \brief The default constructor sets the solution dimension for each basis.
   SIMPoroElasticity()
   {
-    Dim::myHeading = "Poroelasticity solver";
-    SIMElasticity<Dim>::myContext = "poroelasticity";
-  }
+    if (ASMmxBase::Type > ASMmxBase::NONE)
+      Dim::nf = { Dim::dimension, 1 }; // mixed formulation
+    else
+      Dim::nf = { Dim::dimension+1 }; // standard formulation
 
-  //! \brief This constructor sets the number of solution fields for each basis.
-  SIMPoroElasticity(const std::vector<unsigned char>& fields)
-  {
-    Dim::nf = fields;
     Dim::myHeading = "Poroelasticity solver";
     SIMElasticity<Dim>::myContext = "poroelasticity";
   }

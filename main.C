@@ -18,7 +18,6 @@
 #include "SIMSolver.h"
 #include "GenAlphaSIM.h"
 #include "InitialConditionHandler.h"
-#include "ASMmxBase.h"
 #include "AppCommon.h"
 #include "Profiler.h"
 
@@ -35,16 +34,11 @@ template<class Dim, class Sim> int runSimulator (char* infile)
              <<"\n========================="<< std::endl;
 
   // Establish the poroelastic FE model
-  std::vector<unsigned char> fields;
-  if (ASMmxBase::Type > ASMmxBase::NONE)
-    fields = { Dim::dimension, 1 };
-   else
-    fields = { Dim::dimension+1 };
-  Sim model(fields);
+  Sim model;
   if (!model.read(infile))
     return 1;
-  else
-    model.opt.print(IFEM::cout) << std::endl;
+
+  model.opt.print(IFEM::cout) << std::endl;
 
   // Establish the simulation driver
   SIMSolver<Sim> solver(model);
