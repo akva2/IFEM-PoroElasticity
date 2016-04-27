@@ -33,7 +33,8 @@ PoroElasticity::Mats::Mats(size_t ndof_displ, size_t ndof_press, bool neumann)
     A[sys].resize(ndof_tot, ndof_tot);
     A[uu_K].resize(ndof_displ, ndof_displ);
     A[uu_M].resize(ndof_displ, ndof_displ);
-    A[up].resize(ndof_displ, ndof_press);
+    A[up_Q].resize(ndof_displ, ndof_press);
+    A[up_D].resize(ndof_displ, ndof_press);
     A[pp_S].resize(ndof_press, ndof_press);
     A[pp_P].resize(ndof_press, ndof_press);
   }
@@ -44,8 +45,8 @@ const Matrix& PoroElasticity::Mats::getNewtonMatrix() const
 {
   Matrix& res = const_cast<Matrix&>(A[sys]);
   this->add_uu(A[uu_K], res);
-  this->add_up(A[up], res, -1.0);
-  this->add_pu(A[up], res);
+  this->add_up(A[up_Q], res, -1.0);
+  this->add_pu(A[up_Q], res);
   this->add_pp(A[pp_S], res);
   this->add_pp(A[pp_P], res, h);
 #if INT_DEBUG > 2
@@ -70,8 +71,8 @@ const Vector& PoroElasticity::Mats::getRHSVector() const
 #endif
 
   Vector temp(b[Fp]); temp *= h;                  // temp = Fp*h
-  if (A.size() > up   && vec.size() > Vu)
-    A[up]  .multiply(vec[Vu], temp, true, true);  // temp += A_up^t * u
+  if (A.size() > up_Q && vec.size() > Vu)
+    A[up_Q].multiply(vec[Vu], temp, true, true);  // temp += A_up^t * u
   if (A.size() > pp_S && vec.size() > Vp)
     A[pp_S].multiply(vec[Vp], temp, false, true); // temp += S_pp * p
 

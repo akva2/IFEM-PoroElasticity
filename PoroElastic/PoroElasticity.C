@@ -238,6 +238,18 @@ bool PoroElasticity::evalPermeabilityMatrix (Matrix& mx, const Matrix& dNdX,
   return true;
 }
 
+bool PoroElasticity::evalDynamicCouplingMatrix(Matrix& mx, const Vector& Nu,
+                                               const Matrix& dNpdx,
+                                               const Vec3& permeability,
+                                               double scl) const
+{
+  for (size_t i = 1; i <= dNpdx.rows(); i++)
+    for (size_t j = 1; j <= Nu.size(); j++)
+      for (size_t k = 1; k <= nsd; k++)
+        mx(nsd*(j-1) + k, i) += dNpdx(i,k) * permeability[k-1] * Nu(j) * scl;
+
+  return true;
+}
 
 bool PoroElasticity::evalInt (LocalIntegral& elmInt,
                               const FiniteElement& fe,
@@ -271,13 +283,16 @@ bool PoroElasticity::evalInt (LocalIntegral& elmInt,
   // Inverse of the compressibility modulus
   double Minv = ((alpha - poro)/Ks) + (poro/Kw);
 
-  if (m_mode == SIM::DYNAMIC)
+  if (m_mode == SIM::DYNAMIC) {
     this->formMassMatrix(elMat.A[uu_M], fe.basis(1), X, fe.detJxW);
+    this->evalDynamicCouplingMatrix(elMat.A[up_D], fe.basis(1), fe.grad(2),
+                                    permeability, scl / rhog * fe.detJxW);
+  }
 
   if (!this->evalElasticityMatrices(elMat, Bmat, fe, X))
     return false;
 
-  if (!this->evalCouplingMatrix(elMat.A[up], Bmat, fe.basis(2),
+  if (!this->evalCouplingMatrix(elMat.A[up_Q], Bmat, fe.basis(2),
                                 scl*alpha*fe.detJxW))
     return false;
 

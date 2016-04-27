@@ -54,11 +54,12 @@ enum TangentMatrices
   // Sub-matrices, sized according to the bases in question
   uu_K = 1,                     // Stiffness matrix
   uu_M = 2,                     // Mass matrix
-  up = 3,                       // Coupling matrix
-  pp_S = 4,                     // Compressibility matrix
-  pp_P = 5,                     // Permeability matrix
+  up_Q = 3,                     // Coupling matrix
+  up_D = 4,                     // Dynamic coupling matrix
+  pp_S = 5,                     // Compressibility matrix
+  pp_P = 6,                     // Permeability matrix
 
-  NMAT = 6
+  NMAT = 7
 };
 
 
@@ -166,8 +167,9 @@ class PoroElasticity : public Elasticity
       Matrix& res = const_cast<Matrix&>(P::A.front()); res.fill(0.0);
       this->add_uu(P::A[uu_M], res, -1.0);
       this->add_uu(P::A[uu_K], res, beta * P::h * P::h);
-      this->add_up(P::A[up], res, -beta * P::h * P::h);
-      this->add_pu(P::A[up], res, gamma * P::h);
+      this->add_up(P::A[up_Q], res, -beta * P::h * P::h);
+      this->add_pu(P::A[up_Q], res, gamma * P::h);
+      this->add_pu(P::A[up_D], res, -1.0);
       this->add_pp(P::A[pp_S], res, gamma * P::h);
       this->add_pp(P::A[pp_P], res, beta * P::h * P::h);
       return P::A.front();
@@ -176,16 +178,18 @@ class PoroElasticity : public Elasticity
     virtual const Vector& getRHSVector() const
     {
       Vector tu(P::b[Fu]), tp(P::b[Fp]);
-      if (P::A.size() > up   && P::vec.size() > Vp)
-        P::A[up]  .multiply(P::vec[Vp],    tu, false, 1);
+      if (P::A.size() > up_Q && P::vec.size() > Vp)
+        P::A[up_Q].multiply(P::vec[Vp],    tu, false, 1);
       if (P::A.size() > pp_P && P::vec.size() > Vp)
         P::A[pp_P].multiply(P::vec[Vp],    tp, false,-1);
       if (P::A.size() > uu_M && P::vec.size() > Vuacc)
         P::A[uu_M].multiply(P::vec[Vuacc], tu, false, 1);
+      if (P::A.size() > up_D && P::vec.size() > Vuacc)
+        P::A[up_D].multiply(P::vec[Vuacc], tp, true,  1);
       if (P::A.size() > pp_S && P::vec.size() > Vpvel)
         P::A[pp_S].multiply(P::vec[Vpvel], tp, false,-1);
-      if (P::A.size() > up   && P::vec.size() > Vuvel)
-        P::A[up]  .multiply(P::vec[Vuvel], tp, true, -1);
+      if (P::A.size() > up_Q && P::vec.size() > Vuvel)
+        P::A[up_Q].multiply(P::vec[Vuvel], tp, true, -1);
       this->form_vector(tu, tp, const_cast<Vector&>(P::b.front()));
       return P::b.front();
     }
@@ -346,6 +350,10 @@ private:
   //! \brief Computes the permeability matrix for a quadrature point.
   bool evalPermeabilityMatrix(Matrix& mx, const Matrix& dNdX,
                               const Vec3& permeability, double scl) const;
+
+  //! \brief Computes the dynamic coupling matrix for a quadrature point.
+  bool evalDynamicCouplingMatrix(Matrix& mx, const Vector& Nu, const Matrix& dNpdx,
+                                 const Vec3& permeability, double scl) const;
 
 protected:
   //! \brief Computes the elasticity matrices for a quadrature point.
