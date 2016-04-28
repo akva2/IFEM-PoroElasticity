@@ -165,7 +165,7 @@ class PoroElasticity : public Elasticity
     virtual const Matrix& getNewtonMatrix() const
     {
       Matrix& res = const_cast<Matrix&>(P::A.front()); res.fill(0.0);
-      this->add_uu(P::A[uu_M], res, -1.0);
+      this->add_uu(P::A[uu_M], res, 1.0);
       this->add_uu(P::A[uu_K], res, beta * P::h * P::h);
       this->add_up(P::A[up_Q], res, -beta * P::h * P::h);
       this->add_pu(P::A[up_Q], res, gamma * P::h);
@@ -183,7 +183,7 @@ class PoroElasticity : public Elasticity
       if (P::A.size() > pp_P && P::vec.size() > Vp)
         P::A[pp_P].multiply(P::vec[Vp],    tp, false,-1);
       if (P::A.size() > uu_M && P::vec.size() > Vuacc)
-        P::A[uu_M].multiply(P::vec[Vuacc], tu, false, 1);
+        P::A[uu_M].multiply(P::vec[Vuacc], tu, false,-1);
       if (P::A.size() > up_D && P::vec.size() > Vuacc)
         P::A[up_D].multiply(P::vec[Vuacc], tp, true,  1);
       if (P::A.size() > pp_S && P::vec.size() > Vpvel)
