@@ -219,7 +219,8 @@ public:
   virtual void printLog() const;
 
   //! \brief Returns current scaling factor (for unit testing).
-  double getScaling() const { return sc; }
+  double getScaling(const Vec3& X, const TimeDomain& time) const;
+
   //! \brief Returns the current gravity vector (for unit testing).
   const Vec3 getGravity() const { return gravity; }
 
@@ -368,6 +369,69 @@ protected:
 private:
   double sc;   //!< Scaling factor
   double gacc; //!< Gravitational acceleration
+};
+
+
+/*!
+ * \brief Class representing the integrand of the poroelasticity norms.
+ */
+class PoroNorm : public NormBase
+{
+public:
+  //! \brief Initialize members.
+  //! \param[in] poroel The poroelasticity problem to evaluate norms for
+  //! \param[in] disp Displacement solution (optional)
+  //! \param[in] d_disp Derivative of displacement (optional)
+  //! \param[in] press Pressure solution (optional)
+  //! \param[in] d_press Derivative of pressure (optional)
+  PoroNorm(PoroElasticity& poroel,
+           VecFunc* disp = 0, TensorFunc* d_disp = 0,
+           RealFunc* press = 0, VecFunc* d_press = 0);
+
+  //! Empty destructor
+  virtual ~PoroNorm() {}
+
+  //! \brief Returns the number of norm groups or the size of a specified group.
+  //! \param[in] group The norm group to return the size of
+  //! (if zero, return the number of groups)
+  virtual size_t getNoFields(int group = 0) const;
+
+  //! \brief Returns the name of a norm quantity.
+  //! \param[in] i The norm group (one-based index)
+  //! \param[in] j The norm number (one-based index)
+  //! \param[in] prefix Common prefix for all norm names
+  virtual std::string getName(size_t i, size_t j, const char* prefix = 0) const;
+
+  //! \brief Evaluates the integrand at an interior point (mixed).
+  //! \param elmInt The local integral object to receive the contributions
+  //! \param[in] fe Finite element data of current integration point
+  //! \param[in] time Parameters for nonlinear and time-dependent simulations
+  //! \param[in] X Cartesian coordinates of current integration point
+  virtual bool evalIntMx(LocalIntegral& elmInt, const MxFiniteElement& fe,
+                         const TimeDomain& time, const Vec3& X) const;
+
+  //! \brief Evaluates the integrand at an interior point.
+  //! \param elmInt The local integral object to receive the contributions
+  //! \param[in] fe Finite element data of current integration point
+  //! \param[in] time Parameters for nonlinear and time-dependent simulations
+  //! \param[in] X Cartesian coordinates of current integration point
+  virtual bool evalInt(LocalIntegral& elmInt, const FiniteElement& fe,
+                       const TimeDomain& time, const Vec3& X) const;
+
+  //! \brief Initializes the current element for numerical integration (mixed).
+  virtual bool initElement(const std::vector<int>& MNPC,
+                           const std::vector<size_t>& elem_sizes,
+                           const std::vector<size_t>& basis_sizes,
+                           LocalIntegral& elmInt);
+
+  //! \brief Initializes the current element for numerical integration.
+  virtual bool initElement(const std::vector<int>& MNPC, LocalIntegral& elmInt);
+
+private:
+  VecFunc* displacement;
+  TensorFunc* d_displacement;
+  RealFunc* pressure;
+  VecFunc* d_pressure;
 };
 
 #endif

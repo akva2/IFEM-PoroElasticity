@@ -27,7 +27,7 @@ template<class Dim> class SIMPoroElasticity : public SIMElasticityWrap<Dim>
 {
 public:
   //! \brief The default constructor sets the solution dimension for each basis.
-  SIMPoroElasticity()
+  SIMPoroElasticity(bool norms = true) : doPrintNorms(norms)
   {
     if (ASMmxBase::Type > ASMmxBase::NONE)
       Dim::nf = { Dim::dimension, 1 }; // mixed formulation
@@ -81,8 +81,29 @@ public:
     if (!this->solveSystem(solution.front()))
       return false;
 
+    if (doPrintNorms) {
+      Matrix eNorm;
+      Vectors gNorm;
+      this->solutionNorms(tp.time, Vectors(1, solution.front()), gNorm, &eNorm);
+      this->printNorms(gNorm);
+    }
+
     this->printSolutionSummary(solution.front());
     return true;
+  }
+
+  //! \brief Prints norms to stdout
+  virtual void printNorms(const Vectors& norms, size_t w=36) const
+  {
+    if (norms.empty()) return;
+
+    NormBase* norm = this->getNormIntegrand();
+    const Vector& n = norms.front();
+
+    for (size_t i = 1; i <= n.size(); i++)
+      IFEM::cout << utl::adjustRight(w, norm->getName(1, i)) << n(i) << std::endl;
+
+    delete norm;
   }
 
   //! \brief Prints a summary of the calculated solution to std::cout.
@@ -133,6 +154,8 @@ protected:
 
 private:
   Vectors solution; //!< Solution vectors
+
+  bool doPrintNorms; //!< Whether to print norms
 };
 
 #endif
