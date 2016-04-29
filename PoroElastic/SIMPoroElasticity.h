@@ -66,6 +66,14 @@ public:
             height, load);
           this->mySol = new AnaSol(pressure);
           IFEM::cout << "Anasol: Terzhagi" << std::endl;
+        } else if (type == "terzhagi-stationary") {
+          double load;
+          utl::getAttribute(child, "load", load);
+          RealFunc* pressure = new StationaryTerzhagiPressure();
+          VecFunc* displacement = new StationaryTerzhagiDisplacement(
+            static_cast<PoroElasticity*>(this->getIntegrand()), load);
+          this->mySol = new AnaSol(pressure, nullptr, displacement);
+          IFEM::cout << "Anasol: Terzhagi (stationary)" << std::endl;
         } else {
           this->mySol = new AnaSol(child);
           IFEM::cout << "Anasol: expression" << std::endl;

@@ -62,3 +62,17 @@ double TerzhagiPressure::evaluate (const Vec3& X) const
 
   return ret;
 }
+
+
+Vec3 StationaryTerzhagiDisplacement::evaluate (const Vec3& X) const
+{
+  double y = X.y;
+
+  const PoroMaterial* mat = m_mat->getMaterial();
+  double E = mat->getStiffness(X);
+  double nu = mat->getPoisson(X);
+
+  double c = -load/E * (1+nu) * (1-2*nu) / (1-nu);
+
+  return Vec3(0, c*y, 0);
+}
