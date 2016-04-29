@@ -16,6 +16,7 @@
 
 #include "Elasticity.h"
 #include "ElmMats.h"
+#include "PoroMaterial.h"
 
 
 //! \brief Enum for element level solution vectors
@@ -223,6 +224,12 @@ public:
 
   //! \brief Returns the current gravity vector (for unit testing).
   const Vec3 getGravity() const { return gravity; }
+
+  //! \brief Returns the acceleration due to gravity.
+  double getGAcc() const { return gacc; }
+
+  //! \brief Returns a pointer to the material.
+  const PoroMaterial* getMaterial() const { return static_cast<PoroMaterial*>(material); }
 
   //! \brief Returns a local integral contribution object for the given element.
   //! \param[in] nen Number of nodes on element for each basis

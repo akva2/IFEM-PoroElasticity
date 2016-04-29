@@ -13,6 +13,7 @@
 
 #include "PoroElasticity.h"
 #include "PoroMaterial.h"
+#include "AnaSol.h"
 #include "FiniteElement.h"
 #include "ElmNorm.h"
 #include "TimeDomain.h"
@@ -440,8 +441,12 @@ bool PoroElasticity::evalSolCommon (Vector& s,
 }
 
 
-NormBase* PoroElasticity::getNormIntegrand (AnaSol*) const
+NormBase* PoroElasticity::getNormIntegrand (AnaSol* sol) const
 {
+  if (sol)
+    return new PoroNorm(*const_cast<PoroElasticity*>(this),
+                        sol->getVectorSol(), sol->getVectorSecSol(),
+                        sol->getScalarSol(), sol->getScalarSecSol());
   return new PoroNorm(*const_cast<PoroElasticity*>(this));
 }
 

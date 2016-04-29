@@ -16,6 +16,7 @@
 
 #include "SIMElasticityWrap.h"
 #include "PoroElasticity.h"
+#include "PoroSolutions.h"
 #include "ASMmxBase.h"
 
 
@@ -43,6 +44,37 @@ public:
 
   //! \brief Returns the name of this simulator (for use in the HDF5 export).
   virtual std::string getName() const { return "PoroElasticity"; }
+
+  //! \brief Parse a data section from an XML element.
+  virtual bool parse(const TiXmlElement* elem)
+  {
+    bool ret = this->SIMElasticityWrap<Dim>::parse(elem);
+    if (!ret || strcasecmp(elem->Value(), "poroelasticity"))
+      return ret;
+
+    for (const TiXmlElement* child = elem->FirstChildElement();
+         child; child = child->NextSiblingElement()) {
+      if (!strcasecmp(child->Value(), "anasol")) {
+        std::string type;
+        utl::getAttribute(child, "type", type);
+        if (type == "terzhagi") {
+          double height, load;
+          utl::getAttribute(child, "height", height);
+          utl::getAttribute(child, "load", load);
+          RealFunc* pressure = new TerzhagiPressure(
+            static_cast<PoroElasticity*>(this->getIntegrand()),
+            height, load);
+          this->mySol = new AnaSol(pressure);
+          IFEM::cout << "Anasol: Terzhagi" << std::endl;
+        } else {
+          this->mySol = new AnaSol(child);
+          IFEM::cout << "Anasol: expression" << std::endl;
+        }
+      }
+    }
+
+    return ret;
+  }
 
   //! \brief Initializes the solution vectors.
   virtual bool init(const TimeStep&)
