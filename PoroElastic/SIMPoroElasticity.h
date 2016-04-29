@@ -192,10 +192,10 @@ protected:
   //! \brief Returns a const reference to current solution vector.
   virtual const Vector& getSolution(int idx = 0) const { return solution[idx]; }
 
+  bool doPrintNorms; //!< Whether to print norms
+
 private:
   Vectors solution; //!< Solution vectors
-
-  bool doPrintNorms; //!< Whether to print norms
 };
 
 #endif

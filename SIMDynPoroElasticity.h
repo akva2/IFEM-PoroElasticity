@@ -67,6 +67,13 @@ public:
     if (dSim.solveStep(tp) != SIM::CONVERGED)
       return false;
 
+    if (SIMPoroElasticity<Dim>::doPrintNorms) {
+      Matrix eNorm;
+      Vectors gNorm;
+      this->solutionNorms(tp.time, Vectors(1, dSim.getSolution()), gNorm, &eNorm);
+      this->printNorms(gNorm);
+    }
+
     this->printSolutionSummary(dSim.getSolution());
     return true;
   }
