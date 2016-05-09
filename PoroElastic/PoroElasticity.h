@@ -311,7 +311,8 @@ public:
   //! \param[in] elem_sizes Size of each basis on the element
   virtual bool evalSol(Vector& s, const MxFiniteElement& fe, const Vec3& X,
                        const std::vector<int>& MNPC,
-                       const std::vector<size_t>& elem_sizes) const;
+                       const std::vector<size_t>& elem_sizes,
+                       const std::vector<size_t>& basis_sizes) const;
 
   //! \brief Finalizes the element quantities after the numerical integration.
   virtual bool finalizeElement(LocalIntegral&, const TimeDomain&, size_t);
