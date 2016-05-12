@@ -84,7 +84,7 @@ LocalIntegral* PoroElasticity::getLocalIntegral (const std::vector<size_t>& nen,
 {
   if (m_mode == SIM::DYNAMIC)
     return new NewmarkMats<MixedElmMats>(nsd * nen[0], nen[1], neumann,
-                                         intPrm[2], intPrm[3]);
+                                         intPrm[2], intPrm[3], intPrm[0], intPrm[1]);
   else
     return new MixedElmMats(nsd * nen[0], nen[1], neumann);
 }

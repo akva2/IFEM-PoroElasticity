@@ -158,21 +158,31 @@ class PoroElasticity : public Elasticity
   {
   public:
     //! \brief Default constructor
-    NewmarkMats(size_t ndof_d, size_t ndof_p, bool neumann, double b, double c)
-      : P(ndof_d, ndof_p, neumann), beta(b), gamma(c) {}
+    NewmarkMats(size_t ndof_d, size_t ndof_p, bool neumann,
+                double b, double c, double md = 0, double sd = 0)
+      : P(ndof_d, ndof_p, neumann)
+      , beta(b), gamma(c), m_damp(md), s_damp(sd) {}
     //! \brief Empty destructor
     virtual ~NewmarkMats() {}
     //! \brief Returns the element level Newton matrix
     virtual const Matrix& getNewtonMatrix() const
     {
+      double gh = gamma * P::h;
+      double bh2 = beta * P::h * P::h;
+
       Matrix& res = const_cast<Matrix&>(P::A.front()); res.fill(0.0);
       this->add_uu(P::A[uu_M], res, 1.0);
-      this->add_uu(P::A[uu_K], res, beta * P::h * P::h);
-      this->add_up(P::A[up_Q], res, -beta * P::h * P::h);
-      this->add_pu(P::A[up_Q], res, gamma * P::h);
-      this->add_pu(P::A[up_D], res, -1.0);
-      this->add_pp(P::A[pp_S], res, gamma * P::h);
-      this->add_pp(P::A[pp_P], res, beta * P::h * P::h);
+      this->add_uu(P::A[uu_K], res, bh2);
+      this->add_up(P::A[up_Q], res, -bh2);
+      this->add_pu(P::A[up_Q], res, gh);
+      this->add_pp(P::A[pp_S], res, gh);
+      this->add_pp(P::A[pp_P], res, bh2);
+
+      if (m_damp > 0.0)
+        this->add_uu(P::A[uu_M], res, gh * m_damp);
+      if (s_damp > 0.0)
+        this->add_uu(P::A[uu_K], res, gh * s_damp);
+
       return P::A.front();
     }
     //! \brief Returns the element level RHS vector
@@ -185,17 +195,28 @@ class PoroElasticity : public Elasticity
         P::A[pp_P].multiply(P::vec[Vp],    tp, false,-1);
       if (P::A.size() > uu_M && P::vec.size() > Vuacc)
         P::A[uu_M].multiply(P::vec[Vuacc], tu, false,-1);
-      if (P::A.size() > up_D && P::vec.size() > Vuacc)
-        P::A[up_D].multiply(P::vec[Vuacc], tp, true,  1);
       if (P::A.size() > pp_S && P::vec.size() > Vpvel)
         P::A[pp_S].multiply(P::vec[Vpvel], tp, false,-1);
       if (P::A.size() > up_Q && P::vec.size() > Vuvel)
         P::A[up_Q].multiply(P::vec[Vuvel], tp, true, -1);
+
+      if (P::A.size() >> uu_M && P::vec.size() > Vuvel && m_damp > 0.0) {
+        Vector auvel(P::vec[Vuvel]);
+        auvel *= m_damp;
+        P::A[uu_M].multiply(auvel, tu, false, -1);
+      }
+
+      if (P::A.size() > uu_K && P::vec.size() > Vuvel && s_damp > 0.0) {
+        Vector buvel(P::vec[Vuvel]);
+        buvel *= s_damp;
+        P::A[uu_K].multiply(buvel, tu, false, -1);
+      }
+
       this->form_vector(tu, tp, const_cast<Vector&>(P::b.front()));
       return P::b.front();
     }
   protected:
-    double beta, gamma;
+    double beta, gamma, m_damp, s_damp;
   };
 
 
