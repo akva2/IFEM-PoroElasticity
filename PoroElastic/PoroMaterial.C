@@ -18,6 +18,7 @@
 #include "Vec3Oper.h"
 #include "MatVec.h"
 #include "IFEM.h"
+#include "TimeDomain.h"
 #include "tinyxml.h"
 
 
@@ -262,4 +263,14 @@ bool PoroMaterial::evaluate (double& lambda, double& mu,
   lambda = mu*v/(0.5-v);
 
   return true;
+}
+
+
+double PoroMaterial::getScaling(const Vec3& X,
+                                const TimeDomain& time,
+                                double gacc) const
+{
+  double rhog = getFluidDensity(X) * gacc;
+  Vec3 permeability = getPermeability(X);
+  return sqrt(getStiffness(X)*rhog / permeability.x / time.dt);
 }

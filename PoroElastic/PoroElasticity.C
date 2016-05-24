@@ -71,9 +71,7 @@ double PoroElasticity::getScaling(const Vec3& X, const TimeDomain& time) const
 {
   if (sc == 0.0) {
     const PoroMaterial* pmat = dynamic_cast<const PoroMaterial*>(material);
-    double rhog = pmat->getFluidDensity(X) * gacc;
-    Vec3 permeability = pmat->getPermeability(X);
-    return sqrt(pmat->getStiffness(X)*rhog / permeability.x / time.dt);
+    return pmat->getScaling(X, time, gacc);
   }
   return sc;
 }

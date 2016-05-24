@@ -109,6 +109,13 @@ public:
   virtual bool evaluate(double& lambda, double& mu,
                         const FiniteElement& fe, const Vec3& X) const;
 
+  //! \brief Get scaling factor.
+  //! \param X Point to evaluate parameters in
+  //! \param time Time stepping parameters
+  //! \param gacc Gravity acceleration
+  double getScaling(const Vec3& X, const TimeDomain& time,
+                    double gacc) const;
+
 protected:
   FuncConstPair<RealFunc> Emod; //!< Young's modulus
   FuncConstPair<RealFunc> nu;   //!< Poisson's ratio
