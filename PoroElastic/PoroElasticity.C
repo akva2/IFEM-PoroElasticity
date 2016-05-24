@@ -286,12 +286,12 @@ bool PoroElasticity::evalInt (LocalIntegral& elmInt,
   // Biot's coefficient
   double Ko = pmat->getBulkMedium(X);
   double Ks = pmat->getBulkSolid(X);
-  double Kw = pmat->getBulkWater(X);
+  double Kf = pmat->getBulkFluid(X);
   double poro = pmat->getPorosity(X);
 
   double alpha = 1.0 - (Ko/Ks);
   // Inverse of the compressibility modulus
-  double Minv = ((alpha - poro)/Ks) + (poro/Kw);
+  double Minv = ((alpha - poro)/Ks) + (poro/Kf);
 
   if (m_mode == SIM::DYNAMIC) {
     this->formMassMatrix(elMat.A[uu_M], fe.basis(1), X, fe.detJxW);

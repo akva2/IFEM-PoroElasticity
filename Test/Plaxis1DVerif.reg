@@ -6,7 +6,7 @@ Plaxis1DVerif.xinp -2D -mixed
 Elasticity: 2D, gravity = 0 0
 	Density of Fluid, rhof = 1000
 	Density of Solid, rhos = 2700
-	Bulk Modulus of Water, Kw = 1e+99
+	Bulk Modulus of Fluid, Kf = 1e+99
 	Bulk Modulus of Solid, Ks = 1e+99
 	Bulk Modulus of Medium, Ko = 0
 	Young's Modulus, E = 1e+06

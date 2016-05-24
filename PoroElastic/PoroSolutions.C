@@ -30,13 +30,13 @@ double TerzhagiPressure::evaluate (const Vec3& X) const
   double rhof = mat->getFluidDensity(X);
   double E = mat->getStiffness(X);
   double nu = mat->getPoisson(X);
-  double Kw = mat->getBulkWater(X);
+  double Kf = mat->getBulkFluid(X);
   double Ks = mat->getBulkSolid(X);
   double Ko = mat->getBulkMedium(X);
   double n = mat->getPorosity(X);
 
   double alpha = 1.0 - (Ko/Ks);
-  double Minv = ((alpha - n)/Ks) + (n/Kw);
+  double Minv = ((alpha - n)/Ks) + (n/Kf);
   double K = E / 3 / (1 - 2*nu);
   double G = E / 2 / (1 + nu);
   double mv = 1 / (K + 4*G/3);

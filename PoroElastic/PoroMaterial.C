@@ -90,7 +90,7 @@ void PoroMaterial::parse(const TiXmlElement* elem)
 
   propertyParse(porosity, elem, "poro", "porosity");
   propertyParse(permeability, elem, "perm", "permeability");
-  propertyParse(bulkw, elem, "Kw", "waterbulk");
+  propertyParse(bulkf, elem, "Kf", "fluidbulk");
   propertyParse(bulks, elem, "Ks", "solidbulk");
   propertyParse(bulkm, elem, "Ko", "mediumbulk");
 }
@@ -105,7 +105,7 @@ void PoroMaterial::printLog() const
              <<"\n\t\tDensity of Fluid, rhof = "<< rhof.constant
              <<"\n\t\tDensity of Solid, rhos = "<< rhos.constant;
   IFEM::cout <<"\n\tBulk Moduli: "
-             <<"\n\t\tBulk Modulus of Water, Kw = "<< bulkw.constant
+             <<"\n\t\tBulk Modulus of Fluid, Kf = "<< bulkf.constant
              <<"\n\t\tBulk Modulus of Solid, Ks = "<< bulks.constant
              <<"\n\t\tBulk Modulus of Medium, Ko = "<< bulkm.constant;
   IFEM::cout <<"\n\tPorosity, n = "<< porosity.constant << std::endl;
@@ -161,9 +161,9 @@ double PoroMaterial::getMassDensity(const Vec3& X) const
 }
 
 
-double PoroMaterial::getBulkWater(const Vec3& X) const
+double PoroMaterial::getBulkFluid(const Vec3& X) const
 {
-  return bulkw.evaluate(X);
+  return bulkf.evaluate(X);
 }
 
 

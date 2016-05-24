@@ -74,8 +74,8 @@ public:
   double getPorosity(const Vec3& X) const;
   //! \brief Returns permeability at the current point.
   Vec3 getPermeability(const Vec3& X) const;
-  //! \brief Returns bulk modulus of the water at the current point.
-  double getBulkWater(const Vec3& X) const;
+  //! \brief Returns bulk modulus of the fluid at the current point.
+  double getBulkFluid(const Vec3& X) const;
   //! \brief Returns bulk modulus of the solid at the current point.
   double getBulkSolid(const Vec3& X) const;
   //! \brief Returns bulk modulus of the medium at the current point.
@@ -128,7 +128,7 @@ protected:
 
   FuncConstPair<RealFunc> porosity;     //!< Porosity
   FuncConstPair<VecFunc>  permeability; //!< Permeability
-  FuncConstPair<RealFunc> bulkw;        //!< Bulk modulus of water
+  FuncConstPair<RealFunc> bulkf;        //!< Bulk modulus of fluid 
   FuncConstPair<RealFunc> bulks;        //!< Bulk modulus of solid
   FuncConstPair<RealFunc> bulkm;        //!< Bulk modulus of medium
 };
