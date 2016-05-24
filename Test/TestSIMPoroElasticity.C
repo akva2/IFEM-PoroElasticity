@@ -27,5 +27,7 @@ TEST(TestSIMPoroElasticity, Parse)
   ASSERT_FLOAT_EQ(grav.x,0.0);
   ASSERT_FLOAT_EQ(grav.y,0.0);
   ASSERT_FLOAT_EQ(grav.z,0.0);
-  ASSERT_FLOAT_EQ(poro->getScaling(),0.0);
+  TimeDomain t;
+  t.dt = 1.0;
+  ASSERT_FLOAT_EQ(poro->getScaling(Vec3(), t), 920642222.26448686158677615343);
 }
