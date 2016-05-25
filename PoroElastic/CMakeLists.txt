@@ -3,7 +3,7 @@ project(PoroElastic)
 cmake_minimum_required(VERSION 2.6)
 
 include_directories(${PROJECT_SOURCE_DIR}/..
-                    ${PROJECT_SOURCE_DIR}/../../Elasticity)
+                    ${ELASTICITY_DIR})
 
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib)
 
