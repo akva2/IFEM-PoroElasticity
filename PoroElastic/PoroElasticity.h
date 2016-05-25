@@ -19,6 +19,8 @@
 #include "PoroMaterial.h"
 
 
+namespace PoroElastic {
+
 //! \brief Enum for element level solution vectors
 enum SolutionVectors
 {
@@ -62,6 +64,7 @@ enum TangentMatrices
 
   NMAT = 7
 };
+}
 
 
 /*!
@@ -170,6 +173,8 @@ class PoroElasticity : public Elasticity
       double gh = gamma * P::h;
       double bh2 = beta * P::h * P::h;
 
+      using namespace PoroElastic;
+
       Matrix& res = const_cast<Matrix&>(P::A.front()); res.fill(0.0);
       this->add_uu(P::A[uu_M], res, 1.0);
       this->add_uu(P::A[uu_K], res, bh2);
@@ -188,6 +193,8 @@ class PoroElasticity : public Elasticity
     //! \brief Returns the element level RHS vector
     virtual const Vector& getRHSVector() const
     {
+      using namespace PoroElastic;
+
       Vector tu(P::b[Fu]), tp(P::b[Fp]);
       if (P::A.size() > up_Q && P::vec.size() > Vp)
         P::A[up_Q].multiply(P::vec[Vp],    tu, false, 1);
@@ -370,22 +377,18 @@ private:
                      const FiniteElement& fe, const Vec3& X,
                      const Vector& disp) const;
 
-  //! \brief Computes the coupling matrix for a quadrature point.
-  bool evalCouplingMatrix(Matrix& mx, const Matrix& B, const Vector& N,
-                          double scl) const;
-
-  //! \brief Computes the compressibility matrix for a quadrature point.
-  bool evalCompressibilityMatrix(Matrix& mx, const Vector& N, double scl) const;
-
-  //! \brief Computes the permeability matrix for a quadrature point.
-  bool evalPermeabilityMatrix(Matrix& mx, const Matrix& dNdX,
-                              const Vec3& permeability, double scl) const;
-
   //! \brief Computes the dynamic coupling matrix for a quadrature point.
   bool evalDynamicCouplingMatrix(Matrix& mx, const Vector& Nu, const Matrix& dNpdx,
                                  const Vec3& permeability, double scl) const;
 
 protected:
+  //! \brief Computes the compressibility matrix for a quadrature point.
+  bool evalCompressibilityMatrix(Matrix& mx, const Vector& N, double scl) const;
+
+  //! \brief Computes the coupling matrix for a quadrature point.
+  bool evalCouplingMatrix(Matrix& mx, const Matrix& B, const Vector& N,
+                          double scl, bool transpose=true) const;
+
   //! \brief Computes the elasticity matrices for a quadrature point.
   //! \param elmInt The element matrix object to receive the contributions
   //! \param[in] B Strain-displacement matrix of current integration point
@@ -394,6 +397,10 @@ protected:
   virtual bool evalElasticityMatrices(ElmMats& elMat, const Matrix& B,
                                       const FiniteElement& fe,
                                       const Vec3& X) const;
+
+  //! \brief Computes the permeability matrix for a quadrature point.
+  bool evalPermeabilityMatrix(Matrix& mx, const Matrix& dNdX,
+                              const Vec3& permeability, double scl) const;
 
 private:
   double sc;   //!< Scaling factor

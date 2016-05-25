@@ -15,6 +15,9 @@
 #include "Utilities.h"
 
 
+using namespace PoroElastic;
+
+
 PoroElasticity::Mats::Mats(size_t ndof_displ, size_t ndof_press, bool neumann)
 {
   this->resize(NMAT, NVEC);
