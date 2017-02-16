@@ -430,12 +430,12 @@ public:
   //! \brief The only constructor initializes its data members.
   //! \param[in] poroel The poroelasticity problem to evaluate norms for
   //! \param[in] disp Displacement solution (optional)
-  //! \param[in] d_disp Derivative of displacement (optional)
+  // \param[in] d_disp Derivative of displacement (optional)
   //! \param[in] press Pressure solution (optional)
-  //! \param[in] d_press Derivative of pressure (optional)
+  // \param[in] d_press Derivative of pressure (optional)
   PoroNorm(PoroElasticity& poroel,
-           VecFunc* disp = nullptr, TensorFunc* d_disp = nullptr,
-           RealFunc* press = nullptr, VecFunc* d_press = nullptr);
+           VecFunc* disp = nullptr, //TensorFunc* d_disp = nullptr,
+           RealFunc* press = nullptr/*, VecFunc* d_press = nullptr*/);
   //! \brief Empty destructor.
   virtual ~PoroNorm() {}
 
@@ -468,9 +468,9 @@ public:
 
 private:
   VecFunc*    displacement;   //!< Analytical displacement field
-  TensorFunc* d_displacement; //!< Analytical displacement gradient
+//  TensorFunc* d_displacement; //!< Analytical displacement gradient
   RealFunc*   pressure;       //!< Analytical pressure field
-  VecFunc*    d_pressure;     //!< Analytical pressure gradient
+//  VecFunc*    d_pressure;     //!< Analytical pressure gradient
 };
 
 #endif
