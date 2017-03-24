@@ -26,7 +26,8 @@
   \param[in] infile The input file to parse
 */
 
-template<class Dim, class Sim> int runSimulator (char* infile)
+template<class Dim, class Sim> int runSimulator (char* infile,
+                                                 char* restartfile, int restartlevel)
 {
   utl::profiler->start("Model input");
   IFEM::cout <<"\n\n0. Parsing input file(s)."
@@ -60,6 +61,9 @@ template<class Dim, class Sim> int runSimulator (char* infile)
   model.init(TimeStep());
   model.setInitialConditions();
 
+  if (restartfile)
+    SIM::handleRestart(model, solver, restartfile, restartlevel);
+
   // HDF5 output
   DataExporter* exporter = nullptr;
   if (model.opt.dumpHDF5(infile))
@@ -79,14 +83,15 @@ template<class Dim, class Sim> int runSimulator (char* infile)
              1=linear Newmark, 2=Generalized alpha)
 */
 
-template<class Dim> int runSimulator (char* infile, char integrator)
+template<class Dim> int runSimulator (char* infile, char integrator,
+                                      char* restartfile, int restartlevel)
 {
   if (integrator == 2)
-    return runSimulator<Dim, SIMDynPoroElasticity<Dim,GenAlphaSIM> >(infile);
+    return runSimulator<Dim, SIMDynPoroElasticity<Dim,GenAlphaSIM> >(infile,restartfile,restartlevel);
   else if (integrator > 0)
-    return runSimulator<Dim, SIMDynPoroElasticity<Dim,NewmarkSIM> >(infile);
+    return runSimulator<Dim, SIMDynPoroElasticity<Dim,NewmarkSIM> >(infile,restartfile,restartlevel);
   else // quasi-static
-    return runSimulator<Dim, SIMPoroElasticity<Dim> >(infile);
+    return runSimulator<Dim, SIMPoroElasticity<Dim> >(infile,restartfile,restartlevel);
 }
 
 
@@ -101,6 +106,8 @@ int main (int argc, char ** argv)
 
   int i;
   char* infile = 0;
+  char* restartfile = 0;
+  int restartlevel = -1;
   char integrator = 0;
   bool twoD = false;
   ASMmxBase::Type = ASMmxBase::NONE;
@@ -118,7 +125,11 @@ int main (int argc, char ** argv)
       integrator = 2;
     else if (!strncmp(argv[i],"-dyn",4))
       integrator = 1;
-    else if (!infile)
+    else if (!strcmp(argv[i],"-restart") && i < argc-1) {
+      restartfile = strtok(argv[++i],".");
+      if (i+1 < argc && argv[i+1][0] != '-')
+        restartlevel = atoi(argv[++i]);
+    } else if (!infile)
       infile = argv[i];
     else
       std::cerr <<"*** Unknown option ignored: "<< argv[i] << std::endl;
@@ -142,7 +153,7 @@ int main (int argc, char ** argv)
   IFEM::cout << std::endl;
 
   if (twoD)
-    return runSimulator<SIM2D>(infile,integrator);
+    return runSimulator<SIM2D>(infile,integrator,restartfile,restartlevel);
   else
-    return runSimulator<SIM3D>(infile,integrator);
+    return runSimulator<SIM3D>(infile,integrator,restartfile,restartlevel);
 }

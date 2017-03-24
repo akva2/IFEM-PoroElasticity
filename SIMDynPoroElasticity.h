@@ -81,6 +81,39 @@ public:
   //! \brief Returns a const reference to current solution vector.
   virtual const Vector& getSolution(int i) const { return dSim.getSolution(i); }
 
+  //! \brief Serialize internal state for restarting purposes.
+  //! \param data Container for serialized data
+  bool serialize(DataExporter::SerializeData& data)
+  {
+#ifdef HAS_CEREAL
+    std::ostringstream str;
+    cereal::BinaryOutputArchive ar(str);
+    for (size_t i = 0; i < 3; ++i)
+      ar(dSim.getSolution(i));
+    data.insert(std::make_pair(this->getName(), str.str()));
+    return true;
+#endif
+    return false;
+  }
+
+  //! \brief Set internal state from a serialized state.
+  //! \param data Container for serialized data
+  bool deSerialize(const DataExporter::SerializeData& data)
+  {
+#ifdef HAS_CEREAL
+    std::stringstream str;
+    auto it = data.find(this->getName());
+    if (it != data.end()) {
+      str << it->second;
+      cereal::BinaryInputArchive ar(str);
+      for (size_t i = 0; i < 3; ++i)
+        ar(const_cast<Vector&>(dSim.getSolution(i)));
+      return true;
+    }
+#endif
+    return false;
+  }
+
 protected:
   //! \brief Parses a data section from an XML element.
   virtual bool parse(const TiXmlElement* elem)

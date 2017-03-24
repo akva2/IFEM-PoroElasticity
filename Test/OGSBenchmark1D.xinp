@@ -36,4 +36,8 @@
 
   <timestepping start="0" end="6.660" dt="3.330"/>
 
+  <postprocessing>
+    <restartstride>1</restartstride>
+  </postprocessing>
+
 </simulation>

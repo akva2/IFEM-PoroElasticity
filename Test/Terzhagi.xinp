@@ -43,4 +43,8 @@
     <solve_displacements/>
   </newmarksolver>
 
+  <postprocessing>
+    <restartstride>1</restartstride>
+  </postprocessing>
+
 </simulation>

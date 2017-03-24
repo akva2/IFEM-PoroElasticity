@@ -19,6 +19,11 @@
 #include "SIM3D.h"
 #include "PoroElasticity.h"
 #include "ASMmxBase.h"
+#ifdef HAS_CEREAL
+#include <cereal/cereal.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
+#endif
 
 
 /*!
@@ -133,6 +138,39 @@ public:
 
     delete norm;
     return ok;
+  }
+
+  //! \brief Serialize internal state for restarting purposes.
+  //! \param data Container for serialized data
+  bool serialize(DataExporter::SerializeData& data)
+  {
+#ifdef HAS_CEREAL
+    std::ostringstream str;
+    cereal::BinaryOutputArchive ar(str);
+    for (size_t i = 0; i < solution.size(); ++i)
+      ar(solution[i]);
+    data.insert(std::make_pair(this->getName(), str.str()));
+    return true;
+#endif
+    return false;
+  }
+
+  //! \brief Set internal state from a serialized state.
+  //! \param data Container for serialized data
+  bool deSerialize(const DataExporter::SerializeData& data)
+  {
+#ifdef HAS_CEREAL
+    std::stringstream str;
+    auto it = data.find(this->getName());
+    if (it != data.end()) {
+      str << it->second;
+      cereal::BinaryInputArchive ar(str);
+      for (size_t i = 0; i < solution.size(); ++i)
+        ar(solution[i]);
+      return true;
+    }
+#endif
+    return false;
   }
 
 protected:
