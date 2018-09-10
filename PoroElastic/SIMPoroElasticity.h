@@ -46,6 +46,19 @@ public:
   //! \brief Returns the name of this simulator (for use in the HDF5 export).
   virtual std::string getName() const { return "PoroElasticity"; }
 
+  //! \brief Initializes the linear equation solver and solution vectors.
+  //! \param[in] withRF If \e true, reaction forces will be calculated
+  virtual bool init(const TimeStep& tp, bool withRF = false)
+  {
+    PoroElasticity* el = static_cast<PoroElasticity*>(Dim::myProblem);
+    if (tp.multiStepSize() && !el->hasConstScaling()) {
+      std::cerr << "Default scaling factor needs constant step sizes. Add <scaling> to input file.\n" << std::endl;
+      return false;
+    }
+
+    return this->SIMElasticityWrap<Dim>::init(tp, withRF);
+  }
+
   //! \brief Computes the solution for the current time step.
   virtual bool solveStep(TimeStep& tp)
   {

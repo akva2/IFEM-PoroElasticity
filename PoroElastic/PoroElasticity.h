@@ -275,6 +275,9 @@ public:
   //! \brief Returns the scaling factor at given location.
   double getScaling(const Vec3& X, double dt = 0.0) const;
 
+  //! \brief Returns if a constant scaling factor is used.
+  bool hasConstScaling() const { return sc != 0.0; }
+
   //! \brief Returns a local integral contribution object for the given element.
   //! \param[in] nen Number of nodes on element for each basis
   //! \param[in] neumann Whether or not we are assembling Neumann BCs

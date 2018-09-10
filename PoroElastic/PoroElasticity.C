@@ -371,7 +371,8 @@ bool PoroElasticity::evalBouMx (LocalIntegral& elmInt,
 bool PoroElasticity::finalizeElement (LocalIntegral& elmInt,
                                       const TimeDomain& time, size_t)
 {
-  static_cast<Mats&>(elmInt).setStepSize(time.dt);
+  ElmMats& A = static_cast<ElmMats&>(elmInt);
+  static_cast<Mats&>(elmInt).setStepSize(A.A[uu_M].empty() ? 0.0 : time.dt);
   return true;
 }
 

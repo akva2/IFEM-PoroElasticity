@@ -53,7 +53,7 @@ template<class Dim, class Sim> int runSimulator (char* infile)
 
   // Initialize the linear solvers and solution vectors,
   // include assembly of reaction forces
-  if (!model.init(TimeStep(),true))
+  if (!model.init(solver.getTimePrm(),true))
     return 2;
 
   // Load initial conditions unless a restart
