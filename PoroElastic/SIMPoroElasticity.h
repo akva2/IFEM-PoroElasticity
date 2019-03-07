@@ -19,6 +19,7 @@
 #include "SIM3D.h"
 #include "SAM.h"
 #include "PoroElasticity.h"
+#include "PoroMaterialTexture.h"
 #include "ASMmxBase.h"
 #include "tinyxml.h"
 
@@ -186,6 +187,16 @@ protected:
           utl::getAttribute(child,"pressure",scaleP);
           IFEM::cout <<"\tDisplacement scaling: "<< scaleD
                      <<"\n\tPressure scaling: "<< scaleP << std::endl;
+        }
+        else if (!strcasecmp(child->Value(),"porotexturematerial"))
+        {
+          IFEM::cout <<"  Parsing <"<< child->Value() <<">"<< std::endl;
+          int code = this->parseMaterialSet(child,this->mVec.size());
+          IFEM::cout <<"\tMaterial code "<< code <<":";
+          PoroMaterialTexture* mat = new PoroMaterialTexture;
+          mat->parse(child);
+          this->mVec.push_back(mat);
+          this->getIntegrand()->setMaterial(mat);
         }
     }
     return this->SIMElasticityWrap<Dim>::parse(elem);
