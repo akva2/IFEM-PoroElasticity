@@ -47,10 +47,11 @@ void TextureProperties::parse(const TiXmlElement* elem)
 
     properties[prop].textureData.resize(nx,ny,nz);
     const unsigned char* data = image;
-    double* tdata = properties[prop].textureData.ptr();
-    for (int j = 1; j <= height; j++)
-      for (int i = 1; i <= width; i++)
-        *tdata++ = double(*data++) / 255.0;
+    for (int i = 1; i <= nx; ++i)
+      for (int j = 1; j <= ny; ++j)
+        for (int k = 1; k <= nz; ++k)
+          properties[prop].textureData(i,j,k) = double(*data++) / 255.0;
+
     free(image);
 
     utl::getAttribute(child,"min",properties[prop].min);
