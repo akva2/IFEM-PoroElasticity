@@ -19,6 +19,7 @@ protected:
     double min;
     double max;
     Matrix3D textureData;
+    bool prescaled = false;
   };
 
   std::map<std::string, Property> properties;

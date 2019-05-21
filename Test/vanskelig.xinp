@@ -3,17 +3,20 @@
 <simulation>
 
   <geometry dim="3">
-    <patchfile>vanskelig.g2</patchfile>
-<!--    <refine patch="1" u="7" v="7" w="7"/>-->
+    <patchfile>geom.g2</patchfile>
+    <refine patch="1" u="7" v="7" w="7"/>
     <topologysets>
       <set name="Model" type="volume">
         <item patch="1"/>
       </set>
       <set name="all" type="face">
-        <item patch="1">1 2 3 4 5</item>
+        <item patch="1">1 2 3 4 5 6</item>
       </set>
       <set name="top" type="face">
         <item patch="1">6</item>
+      </set>
+      <set name="bottom" type="face">
+        <item patch="1">5</item>
       </set>
       <set name="corner" type="face">
         <item patch="1">5 6</item>
@@ -23,31 +26,32 @@
 
   <poroelasticity>
     <boundaryconditions>
-      <dirichlet set="all" comp="123" />
-      <dirichlet set="top" comp="3">1</dirichlet>
-      <dirichlet set="corner" comp="4"/>
+      <dirichlet set="bottom" comp="123" />
+      <dirichlet set="all" basis="1" comp="4" />
     </boundaryconditions>
     <porotexturematerial set="Model" rhof="1.0" rhos="1.0" nu="0.4"
                          mu="9.81" Minv="0.0" Kf="1e99" Ks="1e99" Ko="0">
-      <property name="stiffness" file="emodulus25.png" min="0.0" max="29.1800003"
-                nx="5" ny="5" nz="1250"/>
-      <property name="permx" file="zebra_i.png" min="0.0" max="277.158"
-                nx="5" ny="5" nz="1250"/>
-      <property name="permy" file="zebra_j.png" min="0.0" max="277.158"
-                nx="5" ny="5" nz="1250"/>
-      <property name="permz" file="zebra_k.png" min="0.0" max="1.9107"
-                nx="5" ny="5" nz="1250"/>
-      <property name="poisson" file="poissonratio25.png" min="0.0"
-                max="0.189999998" nx="5" ny="5" nz="1250"/>
-      <property name="poro" file="testImage.png" min="0.0" max="0.1448"
-                nx="5" ny="5" nz="1250"/>
+<!--      <property name="stiffness" file="emodulus25.png" min="0.1" max="23.6499996e9"-->
+<!--                nx="7" ny="7" nz="1500"/>-->
+<!--      <property name="stiffness" file="textures_1x1.hdf5"/>-->
+      <property name="cellids" file="textures_1x1.hdf5"/>
+      <property name="permx" file="kx.png" min="0.0" max="0.164321"
+                nx="7" ny="7" nz="1500"/>
+      <property name="permy" file="kx.png" min="0.0" max="0.164321"
+                nx="7" ny="7" nz="1500"/>
+      <property name="permz" file="kz.png" min="0.0" max="0.0773675"
+                nx="7" ny="7" nz="1500"/>
+      <property name="poisson" file="poissonratio25.png" min="0.01"
+                max="0.189999998" nx="7" ny="7" nz="1500"/>
+      <property name="poro" file="poro.png" min="0.0" max="0.113567"
+                nx="7" ny="7" nz="1500"/>
     </porotexturematerial>
   </poroelasticity>
 
   <timestepping start="0" end="0.02" dt="0.01" />
 
   <discretization>
-    <nGauss>3</nGauss>
+    <nGauss>2</nGauss>
   </discretization>
 
 </simulation>
