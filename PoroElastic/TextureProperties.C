@@ -29,6 +29,10 @@ void TextureProperties::parse(const TiXmlElement* elem)
       ProcessAdm adm;
       HDF5Reader reader(textureFile, adm);
       reader.read3DArray(prop, properties[prop].textureData);
+      properties[prop].min = *std::min_element(properties[prop].textureData.begin(),
+                                               properties[prop].textureData.end());
+      properties[prop].max = *std::max_element(properties[prop].textureData.begin(),
+                                               properties[prop].textureData.end());
     } else {
       int width, height, nrChannels;
       unsigned char* image = stb::loadImage(textureFile.c_str(),
@@ -96,7 +100,7 @@ bool TextureProperties::getProperty(const std::string& name,
   int j = X4->u[1]*(prop.textureData.dim(2)-1);
   int k = X4->u[2]*(prop.textureData.dim(3)-1);
 
-  std::cout << X4->u[0] << " " << X4->u[1] << " " << X4->u[2] <<": " << i << " " << j << " " << k << std::endl;
+//  std::cout << X4->u[0] << " " << X4->u[1] << " " << X4->u[2] <<": " << i << " " << j << " " << k << std::endl;
 
   if (prop.prescaled)
     val = prop.textureData(i+1,j+1,k+1);
