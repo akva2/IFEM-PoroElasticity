@@ -8,6 +8,8 @@ SoilColumn3D.xinp -mixed-full
 /0/PoroElasticity-1/fields Group
 /0/PoroElasticity-1/fields/Displacement Group
 /0/PoroElasticity-1/fields/Displacement/1 Dataset {1536}
+/0/PoroElasticity-1/fields/FluidContent Group
+/0/PoroElasticity-1/fields/FluidContent/1 Dataset {512}
 /0/PoroElasticity-1/fields/eps_x Group
 /0/PoroElasticity-1/fields/eps_x/1 Dataset {512}
 /0/PoroElasticity-1/fields/eps_xy Group
@@ -45,6 +47,8 @@ SoilColumn3D.xinp -mixed-full
 /1/PoroElasticity-1/fields Group
 /1/PoroElasticity-1/fields/Displacement Group
 /1/PoroElasticity-1/fields/Displacement/1 Dataset {1536}
+/1/PoroElasticity-1/fields/FluidContent Group
+/1/PoroElasticity-1/fields/FluidContent/1 Dataset {512}
 /1/PoroElasticity-1/fields/eps_x Group
 /1/PoroElasticity-1/fields/eps_x/1 Dataset {512}
 /1/PoroElasticity-1/fields/eps_xy Group
@@ -80,6 +84,8 @@ SoilColumn3D.xinp -mixed-full
 /2/PoroElasticity-1/fields Group
 /2/PoroElasticity-1/fields/Displacement Group
 /2/PoroElasticity-1/fields/Displacement/1 Dataset {1536}
+/2/PoroElasticity-1/fields/FluidContent Group
+/2/PoroElasticity-1/fields/FluidContent/1 Dataset {512}
 /2/PoroElasticity-1/fields/eps_x Group
 /2/PoroElasticity-1/fields/eps_x/1 Dataset {512}
 /2/PoroElasticity-1/fields/eps_xy Group

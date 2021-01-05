@@ -428,8 +428,9 @@ protected:
   //! \param[in] fe Finite element data at current point
   //! \param[in] X Cartesian coordinates of current point
   //! \param[in] disp The displacement coefficients for current element
+  //! \param[in] press The pressure coefficients for current element
   bool evalSol(Vector& s, const FiniteElement& fe, const Vec3& X,
-               const Vector& disp) const;
+               const Vector& disp, const Vector& press) const;
 
 private:
   //! \brief Computes the coupling matrix for a quadrature point.

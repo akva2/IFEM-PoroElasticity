@@ -475,7 +475,8 @@ size_t PoroElasticity::getNoFields (int fld) const
   if (fld < 2)
     return nsd+1;
 
-  return nsd * (nsd + 1);
+  // Strain, stress and fluid content
+  return nsd * (nsd + 1) + 1;
 }
 
 
@@ -506,10 +507,14 @@ std::string PoroElasticity::getField2Name (size_t i, const char* prefix) const
                                {"x", "y", "z", "yz", "xz", "xy"}};
 
   size_t ncmp = nsd * (nsd + 1) / 2;
-  std::string name = std::string(i < ncmp ? "eps_" : "sig_") + s[nsd-2][i%ncmp];
+  std::string name;
+  if (i < 2 * ncmp)
+    name = std::string(i < ncmp ? "eps_" : "sig_") + s[nsd-2][i%ncmp];
+  else
+    name = "FluidContent";
+
   if (!prefix)
     return name;
-
   return prefix + std::string(" ") + name;
 }
 
@@ -519,12 +524,17 @@ bool PoroElasticity::evalSol (Vector& s, const MxFiniteElement& fe,
                               const std::vector<size_t>& elem_sizes,
                               const std::vector<size_t>&) const
 {
-  std::vector<int> MNPC1(MNPC.begin(),MNPC.begin()+elem_sizes.front());
+  auto split = MNPC.begin() + elem_sizes.front();
+  std::vector<int> MNPC1(MNPC.begin(), split);
+  std::vector<int> MNPC2(split, split + elem_sizes[1]);
 
-  Vector eV;
-  utl::gather(MNPC1,nsd,primsol.front(),eV);
+  Vector displacement;
+  utl::gather(MNPC1, nsd, primsol.front(), displacement);
 
-  return this->evalSol(s,fe,X,eV);
+  Vector pressure;
+  utl::gather(MNPC2, 1, primsol.front(), pressure);
+
+  return this->evalSol(s,fe,X,displacement,pressure);
 }
 
 
@@ -534,17 +544,21 @@ bool PoroElasticity::evalSol (Vector& s, const FiniteElement& fe,
   Vector eV;
   utl::gather(MNPC,npv,primsol.front(),eV);
 
-  Vector disp(nsd * fe.N.size());
-  for (size_t i = 0; i < nsd; i++)
-    for (size_t a = 0; a < fe.N.size(); a++)
-      disp[nsd*a+i] = eV[npv*a+i];
+  Vector displacement(nsd * fe.N.size());
+  Vector pressure(fe.N.size());
+  for (size_t a = 0; a < fe.N.size(); a++)
+  {
+    pressure[a] = eV[npv*a + nsd];
+    for (size_t i = 0; i < nsd; i++)
+      displacement[nsd*a+i] = eV[npv*a+i];
+  }
 
-  return this->evalSol(s,fe,X,disp);
+  return this->evalSol(s,fe,X,displacement,pressure);
 }
 
 
 bool PoroElasticity::evalSol (Vector& s, const FiniteElement& fe,
-                              const Vec3& X, const Vector& disp) const
+                              const Vec3& X, const Vector& disp, const Vector& press) const
 {
   if (!material)
   {
@@ -567,6 +581,16 @@ bool PoroElasticity::evalSol (Vector& s, const FiniteElement& fe,
   s = eps;
   const RealArray& sig = sigma;
   s.insert(s.end(),sig.begin(),sig.end());
+
+  double pressure = press.dot(fe.N);
+  const PoroMaterial* pmat = dynamic_cast<const PoroMaterial*>(material);
+  double alpha = pmat->getBiotCoeff(X);
+  double porosity = pmat->getPorosity(X);
+  double Minv = pmat->getBiotModulus(X, alpha, porosity);
+
+  // Fluid content is given implicitly, see (10) in Bekele2017omi
+  double fluidContent = eps.trace() * pmat->getBiotCoeff(X) + pressure * Minv;
+  s.insert(s.end(), fluidContent);
 
   return true;
 }

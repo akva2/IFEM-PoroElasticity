@@ -29,6 +29,7 @@ Step 2
     Scalar: 'sig_yz'
     Scalar: 'sig_xz'
     Scalar: 'sig_xy'
+    Scalar: 'FluidContent'
     Vector: 'u'
 Step 3
   Element block 1
@@ -50,4 +51,5 @@ Step 3
     Scalar: 'sig_yz'
     Scalar: 'sig_xz'
     Scalar: 'sig_xy'
+    Scalar: 'FluidContent'
     Vector: 'u'
